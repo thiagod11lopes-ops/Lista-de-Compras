@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-app-blue-50: #eff6ff;
+  --color-app-blue-100: #dbeafe;
+  --color-app-blue-400: #60a5fa;
+  --color-app-blue-500: #3b82f6;
+  --color-app-blue-600: #2563eb;
+  --color-app-blue-700: #1d4ed8;
+  --color-app-blue-900: #1e3a8a;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  body {
+    @apply min-h-dvh antialiased text-slate-900;
+    font-family: var(--font-sans);
+    background-color: #e8eef7;
+    background-image: url("/Corredor.png");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: scroll;
+  }
+  /** Camada clara para o texto continuar legível sobre a foto */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      rgb(239 246 255 / 0.5),
+      rgb(255 255 255 / 0.55),
+      rgb(219 234 254 / 0.52)
+    );
+  }
+  #app {
+    position: relative;
+    z-index: 1;
+    min-height: 100dvh;
+  }
+}

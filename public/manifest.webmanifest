@@ -1,0 +1,18 @@
+{
+  "name": "Lista de compras",
+  "short_name": "Compras",
+  "description": "Lista de compras mobile-first com persistência local.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eff6ff",
+  "theme_color": "#2563eb",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

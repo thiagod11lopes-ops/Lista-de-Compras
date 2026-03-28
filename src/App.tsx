@@ -37,7 +37,6 @@ export default function App() {
     itensNaListaDoMercado,
     comprasFinalizadas,
     itensComprarNovamente,
-    contagem,
     hidratar,
     adicionarItemComCategoria,
     alternarComprado,
@@ -140,20 +139,10 @@ export default function App() {
       <div className="relative mx-auto flex max-w-lg flex-col gap-5 px-4 pb-28 pt-[max(1.25rem,env(safe-area-inset-top))]">
         <motion.div
           layout
-          className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-md"
-          role="status"
-          aria-live="polite"
+          className="rounded-2xl border border-transparent bg-transparent px-4 py-3 shadow-none"
+          aria-hidden="true"
         >
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm">
-            <span className="font-medium text-slate-700">
-              Comprados:{" "}
-              <strong className="text-blue-700">{contagem.comprados}</strong>
-            </span>
-            <span className="font-medium text-slate-700">
-              Faltando:{" "}
-              <strong className="text-amber-700">{contagem.faltando}</strong>
-            </span>
-          </div>
+          <div className="h-5" />
         </motion.div>
 
         <BotaoListaMercado

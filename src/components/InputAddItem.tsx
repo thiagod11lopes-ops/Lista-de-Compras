@@ -4,10 +4,16 @@ import { type FormEvent, useState } from "react";
 type Props = {
   /** Chamado com o nome válido; o pai abre o modal de categoria. Devolva `false` para não limpar o campo (ex.: item duplicado). */
   onPedirCategoria: (nome: string) => boolean | void;
+  /** Abre o leitor de código de barras (câmara). */
+  onEscanear?: () => void;
   disabled?: boolean;
 };
 
-export function InputAddItem({ onPedirCategoria, disabled = false }: Props) {
+export function InputAddItem({
+  onPedirCategoria,
+  onEscanear,
+  disabled = false,
+}: Props) {
   const [valor, setValor] = useState("");
   const [erro, setErro] = useState(false);
 
@@ -59,6 +65,31 @@ export function InputAddItem({ onPedirCategoria, disabled = false }: Props) {
           Adicionar
         </motion.button>
       </div>
+      {onEscanear ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onEscanear()}
+          className="flex w-full min-h-[48px] items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white/90 px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/80 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            className="h-5 w-5 shrink-0 text-blue-700"
+            aria-hidden
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3.75 4.5v15M7.5 4.5v15m-1.875-15h1.5m-1.5 9h1.5M12 4.5v15m-1.875-15h1.5m-1.5 6h1.5m-1.5 6h1.5M16.5 4.5v15m-1.875-15h1.5m-1.5 9h1.5M20.25 4.5v15"
+            />
+          </svg>
+          Escanear código de barras
+        </button>
+      ) : null}
       {erro ? (
         <p className="text-sm font-medium text-red-600" role="status">
           Digite um nome para o item.

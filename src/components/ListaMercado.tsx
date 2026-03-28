@@ -24,9 +24,12 @@ export type ModoListaMercado = "simples" | "completa";
 type Props = {
   itens: ItemCompra[];
   categorias: Categoria[];
+  /** Ordem dos grupos (corredores) na loja habitual. */
+  ordemCorredoresCategoriaIds: string[];
   modoLista: ModoListaMercado;
   /** Quando não há linhas no mercado mas ainda existem itens no app (só fora desta lista). */
   mercadoVazioMasExistemItensNoApp?: boolean;
+  onAbrirOrdemCorredores: () => void;
   onToggle: (id: string) => void;
   onPrecoChange: (id: string, preco: number | null) => void;
   onQuantidadeChange: (id: string, valor: number | null) => void;
@@ -37,8 +40,10 @@ type Props = {
 export function ListaMercado({
   itens,
   categorias,
+  ordemCorredoresCategoriaIds,
   modoLista,
   mercadoVazioMasExistemItensNoApp = false,
+  onAbrirOrdemCorredores,
   onToggle,
   onPrecoChange,
   onQuantidadeChange,
@@ -54,7 +59,11 @@ export function ListaMercado({
   const [modalAvisoPendentesFinalizar, setModalAvisoPendentesFinalizar] =
     useState(false);
 
-  const blocos = blocosPorCategoria(itens, categorias);
+  const blocos = blocosPorCategoria(
+    itens,
+    categorias,
+    ordemCorredoresCategoriaIds,
+  );
   const temComprados = itens.some((i) => i.comprado);
 
   const totalPrecos = useMemo(() => {
@@ -68,19 +77,27 @@ export function ListaMercado({
   const resumoFinalizar = useMemo(() => {
     const linhasPorItem = linhasTotaisComprados(itens);
     return {
-      linhas: linhasTotaisCompradosPorCategoria(itens, categorias),
+      linhas: linhasTotaisCompradosPorCategoria(
+        itens,
+        categorias,
+        ordemCorredoresCategoriaIds,
+      ),
       total: somaTotaisLinhas(linhasPorItem),
     };
-  }, [itens, categorias]);
+  }, [itens, categorias, ordemCorredoresCategoriaIds]);
 
   const blocosResumoSimples = useMemo(() => {
     const comprados = itens.filter((i) => i.comprado);
-    const blocosC = blocosPorCategoria(comprados, categorias);
+    const blocosC = blocosPorCategoria(
+      comprados,
+      categorias,
+      ordemCorredoresCategoriaIds,
+    );
     return blocosC.map((b) => ({
       titulo: b.titulo.trim() || "Sem categoria",
       nomes: b.itens.map((i) => i.nome),
     }));
-  }, [itens, categorias]);
+  }, [itens, categorias, ordemCorredoresCategoriaIds]);
 
   const contagemMercado = useMemo(() => {
     const comprados = itens.filter((i) => i.comprado).length;
@@ -145,19 +162,30 @@ export function ListaMercado({
         listaSimples={listaSimples}
         blocosResumoSimples={blocosResumoSimples}
       />
-      <div className="flex items-center gap-3 px-1">
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/90 text-2xl leading-none shadow-md shadow-blue-900/15 backdrop-blur-sm"
-          aria-hidden
-        >
-          🛒
-        </span>
-        <h2
-          id="titulo-mercado"
-          className="text-lg font-bold tracking-tight text-blue-950 [text-shadow:0_1px_0_rgb(255_255_255/0.85),0_2px_6px_rgb(15_23_42/0.35),0_4px_12px_rgb(15_23_42/0.12)]"
-        >
-          Lista do Mercado
-        </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/90 text-2xl leading-none shadow-md shadow-blue-900/15 backdrop-blur-sm"
+            aria-hidden
+          >
+            🛒
+          </span>
+          <h2
+            id="titulo-mercado"
+            className="text-lg font-bold tracking-tight text-blue-950 [text-shadow:0_1px_0_rgb(255_255_255/0.85),0_2px_6px_rgb(15_23_42/0.35),0_4px_12px_rgb(15_23_42/0.12)]"
+          >
+            Lista do Mercado
+          </h2>
+        </div>
+        {categorias.length > 0 ? (
+          <button
+            type="button"
+            onClick={onAbrirOrdemCorredores}
+            className="shrink-0 rounded-xl border border-blue-200/90 bg-white/90 px-3 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-[0.98]"
+          >
+            Ordem dos corredores
+          </button>
+        ) : null}
       </div>
 
       {itens.length > 0 ? (

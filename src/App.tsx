@@ -18,10 +18,12 @@ import { ModalCategoriaNovoItem } from "./components/ModalCategoriaNovoItem";
 import { ModalConfiguracoes } from "./components/ModalConfiguracoes";
 import { ModalTutorial } from "./components/ModalTutorial";
 import { ModalExcluirItens } from "./components/ModalExcluirItens";
+import { ModalOrdemCorredores } from "./components/ModalOrdemCorredores";
 import {
   ModalAvisoDuplicado,
   type TipoDuplicado,
 } from "./components/ModalAvisoDuplicado";
+import { ModalEscanearCodigo } from "./components/ModalEscanearCodigo";
 import {
   type ResultadoMutacaoLista,
   useListaCompras,
@@ -69,14 +71,20 @@ export default function App() {
     removerItensPorIds,
     finalizarCompras,
     definirModoListaMercado,
+    definirOrdemCorredoresCategoriaIds,
     criarCategoriaEAtribuirItens,
     zerarSistema,
+    ordemCorredoresCategoriaIds,
   } = useListaCompras();
 
+  const [modalOrdemCorredoresAberto, setModalOrdemCorredoresAberto] =
+    useState(false);
   const [modalTipoListaMercadoAberto, setModalTipoListaMercadoAberto] =
     useState(false);
   const [modoListaMercado, setModoListaMercado] =
     useState<ModoListaMercado | null>(null);
+  const [modalEscanearCodigoAberto, setModalEscanearCodigoAberto] =
+    useState(false);
 
   const irParaListaMercado = useCallback(() => {
     setAbaAtiva("mercado");
@@ -106,6 +114,18 @@ export default function App() {
   const fecharModalTipoListaMercado = useCallback(() => {
     setModalTipoListaMercadoAberto(false);
   }, []);
+
+  const aoNomeDoCodigoBarras = useCallback(
+    (nome: string) => {
+      if (nomeItemJaExiste(itens, nome)) {
+        setAvisoDuplicado("item");
+        return;
+      }
+      setItemEditandoId(null);
+      setNomeItemParaCategoria(nome);
+    },
+    [itens],
+  );
 
   const itemEmEdicao = itemEditandoId
     ? itens.find((i) => i.id === itemEditandoId)
@@ -205,9 +225,13 @@ export default function App() {
                 <ListaMercado
                   itens={itensNaListaDoMercado}
                   categorias={categorias}
+                  ordemCorredoresCategoriaIds={ordemCorredoresCategoriaIds}
                   modoLista={modoListaMercado}
                   mercadoVazioMasExistemItensNoApp={
                     itens.length > 0 && itensNaListaDoMercado.length === 0
+                  }
+                  onAbrirOrdemCorredores={() =>
+                    setModalOrdemCorredoresAberto(true)
                   }
                   onToggle={alternarComprado}
                   onPrecoChange={definirPrecoItem}
@@ -221,6 +245,7 @@ export default function App() {
                 <ListaFaltando
                   itens={itensComprarNovamente}
                   categorias={categorias}
+                  ordemCorredoresCategoriaIds={ordemCorredoresCategoriaIds}
                   onAlternarListaMercado={alternarItemNaListaDoMercado}
                 />
               ) : null}
@@ -256,6 +281,7 @@ export default function App() {
                         setNomeItemParaCategoria(nome);
                         return true;
                       }}
+                      onEscanear={() => setModalEscanearCodigoAberto(true)}
                       disabled={hidratar}
                     />
                   </div>
@@ -369,6 +395,13 @@ export default function App() {
           return true;
         }}
       />
+      <ModalOrdemCorredores
+        aberto={modalOrdemCorredoresAberto}
+        categorias={categorias}
+        ordemAtualIds={ordemCorredoresCategoriaIds}
+        onFechar={() => setModalOrdemCorredoresAberto(false)}
+        onSalvar={(ids) => definirOrdemCorredoresCategoriaIds(ids)}
+      />
       <ModalTipoListaMercado
         aberto={modalTipoListaMercadoAberto && abaAtiva === "mercado"}
         onEscolherSimples={aoEscolherListaSimples}
@@ -383,6 +416,11 @@ export default function App() {
         aberto={modalConfigAberto}
         onFechar={() => setModalConfigAberto(false)}
         onZerarSistema={zerarSistema}
+      />
+      <ModalEscanearCodigo
+        aberto={modalEscanearCodigoAberto}
+        onFechar={() => setModalEscanearCodigoAberto(false)}
+        onNomeDetectado={aoNomeDoCodigoBarras}
       />
       <ModalAvisoDuplicado
         aberto={avisoDuplicado !== null}

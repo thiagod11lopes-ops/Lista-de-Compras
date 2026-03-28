@@ -56,8 +56,13 @@ export function somaTotaisLinhas(
 export function linhasTotaisCompradosPorCategoria(
   itens: ItemCompra[],
   categorias: Categoria[],
+  ordemCorredoresCategoriaIds?: string[] | null,
 ): { nome: string; total: number }[] {
-  const blocos = blocosPorCategoria(itens, categorias);
+  const blocos = blocosPorCategoria(
+    itens,
+    categorias,
+    ordemCorredoresCategoriaIds,
+  );
   const linhas: { nome: string; total: number }[] = [];
 
   for (const bloco of blocos) {

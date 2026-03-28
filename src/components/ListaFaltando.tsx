@@ -6,11 +6,21 @@ import { ItemFaltando } from "./ItemFaltando";
 type Props = {
   itens: ItemCompra[];
   categorias: Categoria[];
+  ordemCorredoresCategoriaIds?: string[] | null;
   onAlternarListaMercado: (id: string) => void;
 };
 
-export function ListaFaltando({ itens, categorias, onAlternarListaMercado }: Props) {
-  const blocos = blocosPorCategoria(itens, categorias);
+export function ListaFaltando({
+  itens,
+  categorias,
+  ordemCorredoresCategoriaIds,
+  onAlternarListaMercado,
+}: Props) {
+  const blocos = blocosPorCategoria(
+    itens,
+    categorias,
+    ordemCorredoresCategoriaIds,
+  );
 
   return (
     <section className="space-y-3" aria-labelledby="titulo-faltando">

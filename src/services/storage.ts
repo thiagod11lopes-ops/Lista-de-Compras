@@ -8,6 +8,8 @@ export type EstadoLista = {
   categorias: Categoria[];
   itens: ItemCompra[];
   comprasFinalizadas: CompraFinalizada[];
+  /** Ordem dos corredores (IDs de categoria) na loja habitual — Lista do Mercado segue esta ordem. */
+  ordemCorredoresCategoriaIds?: string[];
 };
 
 function isItemCompra(value: unknown): value is ItemCompra {
@@ -91,11 +93,21 @@ function isCompraFinalizada(value: unknown): value is CompraFinalizada {
   return o.itens.every(isLinhaCompraFinalizada);
 }
 
+function isOrdemCorredores(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((x) => typeof x === "string");
+}
+
 function isEstadoV2(value: unknown): value is EstadoLista {
   if (typeof value !== "object" || value === null) return false;
   const o = value as Record<string, unknown>;
   if (!Array.isArray(o.itens) || !Array.isArray(o.categorias)) return false;
   if (!o.itens.every(isItemCompra) || !o.categorias.every(isCategoria)) {
+    return false;
+  }
+  if (
+    o.ordemCorredoresCategoriaIds !== undefined &&
+    !isOrdemCorredores(o.ordemCorredoresCategoriaIds)
+  ) {
     return false;
   }
   if (o.comprasFinalizadas === undefined) {
@@ -122,6 +134,7 @@ export async function carregarEstado(): Promise<EstadoLista> {
           categorias: parsed.categorias,
           itens: parsed.itens,
           comprasFinalizadas: parsed.comprasFinalizadas ?? [],
+          ordemCorredoresCategoriaIds: parsed.ordemCorredoresCategoriaIds,
         };
       }
     }

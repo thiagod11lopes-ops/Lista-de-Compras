@@ -32,6 +32,8 @@ export function useListaCompras() {
   const [comprasFinalizadas, setComprasFinalizadas] = useState<
     CompraFinalizada[]
   >([]);
+  const [ordemCorredoresCategoriaIds, setOrdemCorredoresCategoriaIds] =
+    useState<string[]>([]);
   const [hidratar, setHidratar] = useState(true);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export function useListaCompras() {
         setCategorias(estado.categorias);
         setItens(ordenarPorAdicao(estado.itens));
         setComprasFinalizadas(estado.comprasFinalizadas);
+        setOrdemCorredoresCategoriaIds(estado.ordemCorredoresCategoriaIds ?? []);
         setHidratar(false);
       }
     })();
@@ -52,8 +55,34 @@ export function useListaCompras() {
 
   useEffect(() => {
     if (hidratar) return;
-    void salvarEstado({ categorias, itens, comprasFinalizadas });
-  }, [categorias, itens, comprasFinalizadas, hidratar]);
+    void salvarEstado({
+      categorias,
+      itens,
+      comprasFinalizadas,
+      ordemCorredoresCategoriaIds,
+    });
+  }, [
+    categorias,
+    itens,
+    comprasFinalizadas,
+    ordemCorredoresCategoriaIds,
+    hidratar,
+  ]);
+
+  /** Novas categorias entram no fim da ordem dos corredores. */
+  useEffect(() => {
+    if (hidratar) return;
+    setOrdemCorredoresCategoriaIds((prev) => {
+      const idsSet = new Set(categorias.map((c) => c.id));
+      const base = prev.filter((id) => idsSet.has(id));
+      const inBase = new Set(base);
+      const novas = categorias
+        .filter((c) => !inBase.has(c.id))
+        .sort((a, b) => a.criadoEm - b.criadoEm)
+        .map((c) => c.id);
+      return [...base, ...novas];
+    });
+  }, [categorias, hidratar]);
 
   useEffect(() => {
     setCategorias((prev) =>
@@ -297,16 +326,22 @@ export function useListaCompras() {
     setCategorias([]);
   }, []);
 
+  const definirOrdemCorredoresCategoriaIds = useCallback((ids: string[]) => {
+    setOrdemCorredoresCategoriaIds(ids);
+  }, []);
+
   /** Apaga itens, categorias e histórico do balanço (estado inicial). */
   const zerarSistema = useCallback(() => {
     const vazio: EstadoLista = {
       categorias: [],
       itens: [],
       comprasFinalizadas: [],
+      ordemCorredoresCategoriaIds: [],
     };
     setItens([]);
     setCategorias([]);
     setComprasFinalizadas([]);
+    setOrdemCorredoresCategoriaIds([]);
     void salvarEstado(vazio);
   }, []);
 
@@ -395,6 +430,7 @@ export function useListaCompras() {
     itens,
     itensNaListaDoMercado,
     comprasFinalizadas,
+    ordemCorredoresCategoriaIds,
     itensComprarNovamente,
     contagem,
     hidratar,
@@ -411,6 +447,7 @@ export function useListaCompras() {
     removerItensPorIds,
     finalizarCompras,
     definirModoListaMercado,
+    definirOrdemCorredoresCategoriaIds,
     criarCategoriaEAtribuirItens,
   };
 }

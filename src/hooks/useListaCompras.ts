@@ -7,6 +7,17 @@ import {
   salvarEstado,
   type EstadoLista,
 } from "../services/storage";
+import {
+  nomeItemJaExiste,
+  tituloCategoriaJaExiste,
+} from "../utils/duplicados";
+
+export type ResultadoMutacaoLista =
+  | { ok: true }
+  | {
+      ok: false;
+      motivo: "item_duplicado" | "categoria_duplicada" | "invalido";
+    };
 
 function ordenarPorAdicao(itens: ItemCompra[]): ItemCompra[] {
   return [...itens].sort((a, b) => a.criadoEm - b.criadoEm);
@@ -85,12 +96,20 @@ export function useListaCompras() {
         novaCategoriaTitulo: string | null;
         unidadeLista: UnidadeLista;
       },
-    ) => {
+    ): ResultadoMutacaoLista => {
       const t = nome.trim();
-      if (!t) return false;
+      if (!t) return { ok: false, motivo: "invalido" };
+
+      if (nomeItemJaExiste(itens, t)) {
+        return { ok: false, motivo: "item_duplicado" };
+      }
+
+      const novaTitulo = op.novaCategoriaTitulo?.trim();
+      if (novaTitulo && tituloCategoriaJaExiste(categorias, novaTitulo)) {
+        return { ok: false, motivo: "categoria_duplicada" };
+      }
 
       let categoriaIdFinal: string | undefined;
-      const novaTitulo = op.novaCategoriaTitulo?.trim();
       if (novaTitulo) {
         const nova: Categoria = {
           id: crypto.randomUUID(),
@@ -112,9 +131,63 @@ export function useListaCompras() {
         ...(categoriaIdFinal ? { categoriaId: categoriaIdFinal } : {}),
       };
       setItens((prev) => ordenarPorAdicao([...prev, novo]));
-      return true;
+      return { ok: true };
     },
-    [],
+    [itens, categorias],
+  );
+
+  const atualizarItem = useCallback(
+    (
+      id: string,
+      op: {
+        nome: string;
+        categoriaIdExistente: string | null;
+        novaCategoriaTitulo: string | null;
+        unidadeLista: UnidadeLista;
+      },
+    ): ResultadoMutacaoLista => {
+      const t = op.nome.trim();
+      if (!t) return { ok: false, motivo: "invalido" };
+
+      if (nomeItemJaExiste(itens, t, id)) {
+        return { ok: false, motivo: "item_duplicado" };
+      }
+
+      const novaTitulo = op.novaCategoriaTitulo?.trim();
+      if (novaTitulo && tituloCategoriaJaExiste(categorias, novaTitulo)) {
+        return { ok: false, motivo: "categoria_duplicada" };
+      }
+
+      let categoriaIdFinal: string | undefined;
+      if (novaTitulo) {
+        const nova: Categoria = {
+          id: crypto.randomUUID(),
+          titulo: novaTitulo,
+          criadoEm: Date.now(),
+        };
+        setCategorias((prev) => [...prev, nova]);
+        categoriaIdFinal = nova.id;
+      } else if (op.categoriaIdExistente) {
+        categoriaIdFinal = op.categoriaIdExistente;
+      }
+
+      setItens((prev) =>
+        prev.map((i) => {
+          if (i.id !== id) return i;
+          const base: ItemCompra = {
+            ...i,
+            nome: t,
+            unidadeLista: op.unidadeLista ?? "un",
+          };
+          if (categoriaIdFinal) {
+            return { ...base, categoriaId: categoriaIdFinal };
+          }
+          return { ...base, categoriaId: undefined };
+        }),
+      );
+      return { ok: true };
+    },
+    [itens, categorias],
   );
 
   const alternarComprado = useCallback((id: string) => {
@@ -292,10 +365,15 @@ export function useListaCompras() {
   }, []);
 
   const criarCategoriaEAtribuirItens = useCallback(
-    (titulo: string, idsDosItens: string[]) => {
+    (titulo: string, idsDosItens: string[]): ResultadoMutacaoLista => {
       const t = titulo.trim();
       const idSet = new Set(idsDosItens);
-      if (!t || idSet.size === 0) return false;
+      if (!t || idSet.size === 0) return { ok: false, motivo: "invalido" };
+
+      if (tituloCategoriaJaExiste(categorias, t)) {
+        return { ok: false, motivo: "categoria_duplicada" };
+      }
+
       const nova: Categoria = {
         id: crypto.randomUUID(),
         titulo: t,
@@ -307,9 +385,9 @@ export function useListaCompras() {
           idSet.has(i.id) ? { ...i, categoriaId: nova.id } : i,
         ),
       );
-      return true;
+      return { ok: true };
     },
-    [],
+    [categorias],
   );
 
   return {
@@ -321,6 +399,7 @@ export function useListaCompras() {
     contagem,
     hidratar,
     adicionarItemComCategoria,
+    atualizarItem,
     alternarComprado,
     alternarItemNaListaDoMercado,
     retirarDaListaDoMercado,

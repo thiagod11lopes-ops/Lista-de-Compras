@@ -6,6 +6,8 @@ export type EscolhaCategoria = {
   categoriaIdExistente: string | null;
   novaCategoriaTitulo: string | null;
   unidadeLista: UnidadeLista;
+  /** Modo edição: nome atualizado do item */
+  nomeItemEditado?: string;
 };
 
 type Props = {
@@ -13,7 +15,14 @@ type Props = {
   nomeItem: string;
   categorias: Categoria[];
   onFechar: () => void;
-  onConfirmar: (escolha: EscolhaCategoria) => void;
+  /** Devolva `false` para manter o modal aberto (ex.: nome ou categoria duplicados). */
+  onConfirmar: (escolha: EscolhaCategoria) => boolean | void;
+  modoEdicao?: boolean;
+  valorInicialEdicao?: {
+    nome: string;
+    categoriaId: string | null;
+    unidadeLista: UnidadeLista;
+  };
 };
 
 export function ModalCategoriaNovoItem({
@@ -22,19 +31,30 @@ export function ModalCategoriaNovoItem({
   categorias,
   onFechar,
   onConfirmar,
+  modoEdicao = false,
+  valorInicialEdicao,
 }: Props) {
   const tituloId = useId();
   const [categoriaId, setCategoriaId] = useState<string>("");
   const [novaCategoria, setNovaCategoria] = useState("");
   const [unidadeLista, setUnidadeLista] = useState<UnidadeLista>("un");
+  const [nomeEditavel, setNomeEditavel] = useState("");
 
+  const vi = valorInicialEdicao;
   useEffect(() => {
-    if (aberto) {
+    if (!aberto) return;
+    if (modoEdicao && vi) {
+      setNomeEditavel(vi.nome);
+      setCategoriaId(vi.categoriaId ?? "");
+      setNovaCategoria("");
+      setUnidadeLista(vi.unidadeLista);
+    } else if (!modoEdicao) {
+      setNomeEditavel("");
       setCategoriaId("");
       setNovaCategoria("");
       setUnidadeLista("un");
     }
-  }, [aberto]);
+  }, [aberto, modoEdicao, vi?.nome, vi?.categoriaId, vi?.unidadeLista]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -60,21 +80,37 @@ export function ModalCategoriaNovoItem({
 
   function confirmar() {
     const nova = novaCategoria.trim();
-    if (nova) {
-      onConfirmar({
-        categoriaIdExistente: null,
-        novaCategoriaTitulo: nova,
-        unidadeLista,
-      });
-      onFechar();
+    if (modoEdicao) {
+      const nome = nomeEditavel.trim();
+      if (!nome) return;
+      const ok = nova
+        ? onConfirmar({
+            nomeItemEditado: nome,
+            categoriaIdExistente: null,
+            novaCategoriaTitulo: nova,
+            unidadeLista,
+          })
+        : onConfirmar({
+            nomeItemEditado: nome,
+            categoriaIdExistente: categoriaId || null,
+            novaCategoriaTitulo: null,
+            unidadeLista,
+          });
+      if (ok !== false) onFechar();
       return;
     }
-    onConfirmar({
-      categoriaIdExistente: categoriaId || null,
-      novaCategoriaTitulo: null,
-      unidadeLista,
-    });
-    onFechar();
+    const ok = nova
+      ? onConfirmar({
+          categoriaIdExistente: null,
+          novaCategoriaTitulo: nova,
+          unidadeLista,
+        })
+      : onConfirmar({
+          categoriaIdExistente: categoriaId || null,
+          novaCategoriaTitulo: null,
+          unidadeLista,
+        });
+    if (ok !== false) onFechar();
   }
 
   return (
@@ -108,11 +144,25 @@ export function ModalCategoriaNovoItem({
                 id={tituloId}
                 className="text-lg font-bold text-blue-950"
               >
-                Adicionar à categoria
+                {modoEdicao ? "Editar item" : "Adicionar à categoria"}
               </h2>
-              <p className="mt-2 rounded-xl bg-blue-50/80 px-3 py-2 text-sm font-medium text-blue-950">
-                {nomeItem}
-              </p>
+              {modoEdicao ? (
+                <label className="mt-0.5 block" htmlFor="nome-item-editar">
+                  <span className="sr-only">Nome do item</span>
+                  <input
+                    id="nome-item-editar"
+                    type="text"
+                    value={nomeEditavel}
+                    onChange={(e) => setNomeEditavel(e.target.value)}
+                    placeholder="Nome do item"
+                    className="mt-2 min-h-[48px] w-full rounded-xl border-2 border-slate-200 bg-white px-3 text-base font-medium text-blue-950 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
+                  />
+                </label>
+              ) : (
+                <p className="mt-2 rounded-xl bg-blue-50/80 px-3 py-2 text-sm font-medium text-blue-950">
+                  {nomeItem}
+                </p>
+              )}
               <p className="mt-2 text-sm text-slate-600">
                 Defina como a quantidade será informada no mercado e, em seguida,
                 a categoria.
@@ -231,7 +281,7 @@ export function ModalCategoriaNovoItem({
                 onClick={confirmar}
                 className="min-h-[48px] flex-1 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-base font-semibold text-white shadow-md shadow-blue-500/25 transition active:scale-[0.98]"
               >
-                Adicionar
+                {modoEdicao ? "Salvar" : "Adicionar"}
               </button>
             </div>
           </motion.div>

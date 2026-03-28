@@ -18,9 +18,26 @@ import { ModalCategoriaNovoItem } from "./components/ModalCategoriaNovoItem";
 import { ModalConfiguracoes } from "./components/ModalConfiguracoes";
 import { ModalTutorial } from "./components/ModalTutorial";
 import { ModalExcluirItens } from "./components/ModalExcluirItens";
-import { useListaCompras } from "./hooks/useListaCompras";
+import {
+  ModalAvisoDuplicado,
+  type TipoDuplicado,
+} from "./components/ModalAvisoDuplicado";
+import {
+  type ResultadoMutacaoLista,
+  useListaCompras,
+} from "./hooks/useListaCompras";
+import { nomeItemJaExiste } from "./utils/duplicados";
 
 const AbaBalancoPainel = lazy(() => import("./components/AbaBalanco"));
+
+function avisoParaDuplicado(
+  r: ResultadoMutacaoLista,
+): TipoDuplicado | null {
+  if (r.ok) return null;
+  if (r.motivo === "item_duplicado") return "item";
+  if (r.motivo === "categoria_duplicada") return "categoria";
+  return null;
+}
 
 export default function App() {
   const [abaAtiva, setAbaAtiva] = useState<AbaId>("adicionar");
@@ -29,8 +46,12 @@ export default function App() {
   const [nomeItemParaCategoria, setNomeItemParaCategoria] = useState<
     string | null
   >(null);
+  const [itemEditandoId, setItemEditandoId] = useState<string | null>(null);
   const [modalConfigAberto, setModalConfigAberto] = useState(false);
   const [modalTutorialAberto, setModalTutorialAberto] = useState(false);
+  const [avisoDuplicado, setAvisoDuplicado] = useState<TipoDuplicado | null>(
+    null,
+  );
   const {
     categorias,
     itens,
@@ -39,6 +60,7 @@ export default function App() {
     itensComprarNovamente,
     hidratar,
     adicionarItemComCategoria,
+    atualizarItem,
     alternarComprado,
     alternarItemNaListaDoMercado,
     retirarDaListaDoMercado,
@@ -80,6 +102,18 @@ export default function App() {
     setModoListaMercado("completa");
     setModalTipoListaMercadoAberto(false);
   }, [definirModoListaMercado]);
+
+  const fecharModalTipoListaMercado = useCallback(() => {
+    setModalTipoListaMercadoAberto(false);
+  }, []);
+
+  const itemEmEdicao = itemEditandoId
+    ? itens.find((i) => i.id === itemEditandoId)
+    : undefined;
+
+  useEffect(() => {
+    if (itemEditandoId && !itemEmEdicao) setItemEditandoId(null);
+  }, [itemEditandoId, itemEmEdicao]);
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden">
@@ -213,15 +247,38 @@ export default function App() {
                       Novo item
                     </h3>
                     <InputAddItem
-                      onPedirCategoria={(nome) =>
-                        setNomeItemParaCategoria(nome)
-                      }
+                      onPedirCategoria={(nome) => {
+                        if (nomeItemJaExiste(itens, nome)) {
+                          setAvisoDuplicado("item");
+                          return false;
+                        }
+                        setItemEditandoId(null);
+                        setNomeItemParaCategoria(nome);
+                        return true;
+                      }}
                       disabled={hidratar}
                     />
                   </div>
                   <ListaItensAdicionados
                     itens={itens}
                     categorias={categorias}
+                    disabled={hidratar}
+                    onEditar={(id) => {
+                      setNomeItemParaCategoria(null);
+                      setItemEditandoId(id);
+                    }}
+                    onExcluir={(id) => {
+                      const alvo = itens.find((i) => i.id === id);
+                      if (!alvo) return;
+                      if (
+                        window.confirm(
+                          `Excluir "${alvo.nome}" da lista de itens?`,
+                        )
+                      ) {
+                        removerItensPorIds([id]);
+                        if (itemEditandoId === id) setItemEditandoId(null);
+                      }
+                    }}
                   />
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                     <button
@@ -259,24 +316,64 @@ export default function App() {
         itens={itens}
         onFechar={() => setModalAgruparAberto(false)}
         onConfirmar={(titulo, ids) => {
-          criarCategoriaEAtribuirItens(titulo, ids);
+          const r = criarCategoriaEAtribuirItens(titulo, ids);
+          const aviso = avisoParaDuplicado(r);
+          if (aviso) setAvisoDuplicado(aviso);
+          return r.ok;
         }}
       />
       <ModalCategoriaNovoItem
-        aberto={nomeItemParaCategoria !== null}
+        aberto={
+          nomeItemParaCategoria !== null ||
+          (itemEditandoId !== null && itemEmEdicao !== undefined)
+        }
+        modoEdicao={itemEmEdicao !== undefined}
+        valorInicialEdicao={
+          itemEmEdicao
+            ? {
+                nome: itemEmEdicao.nome,
+                categoriaId: itemEmEdicao.categoriaId ?? null,
+                unidadeLista: itemEmEdicao.unidadeLista ?? "un",
+              }
+            : undefined
+        }
         nomeItem={nomeItemParaCategoria ?? ""}
         categorias={categorias}
-        onFechar={() => setNomeItemParaCategoria(null)}
+        onFechar={() => {
+          setNomeItemParaCategoria(null);
+          setItemEditandoId(null);
+        }}
         onConfirmar={(escolha) => {
-          if (nomeItemParaCategoria) {
-            adicionarItemComCategoria(nomeItemParaCategoria, escolha);
+          if (itemEmEdicao) {
+            const nome = escolha.nomeItemEditado?.trim() ?? "";
+            if (!nome) return false;
+            const r = atualizarItem(itemEmEdicao.id, {
+              nome,
+              categoriaIdExistente: escolha.categoriaIdExistente,
+              novaCategoriaTitulo: escolha.novaCategoriaTitulo,
+              unidadeLista: escolha.unidadeLista,
+            });
+            const aviso = avisoParaDuplicado(r);
+            if (aviso) setAvisoDuplicado(aviso);
+            return r.ok;
           }
+          if (nomeItemParaCategoria) {
+            const r = adicionarItemComCategoria(
+              nomeItemParaCategoria,
+              escolha,
+            );
+            const aviso = avisoParaDuplicado(r);
+            if (aviso) setAvisoDuplicado(aviso);
+            return r.ok;
+          }
+          return true;
         }}
       />
       <ModalTipoListaMercado
         aberto={modalTipoListaMercadoAberto && abaAtiva === "mercado"}
         onEscolherSimples={aoEscolherListaSimples}
         onEscolherCompleta={aoEscolherListaCompleta}
+        onFechar={fecharModalTipoListaMercado}
       />
       <ModalTutorial
         aberto={modalTutorialAberto}
@@ -286,6 +383,11 @@ export default function App() {
         aberto={modalConfigAberto}
         onFechar={() => setModalConfigAberto(false)}
         onZerarSistema={zerarSistema}
+      />
+      <ModalAvisoDuplicado
+        aberto={avisoDuplicado !== null}
+        tipo={avisoDuplicado ?? "item"}
+        onFechar={() => setAvisoDuplicado(null)}
       />
     </div>
   );

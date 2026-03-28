@@ -2,8 +2,8 @@ import { motion } from "framer-motion";
 import { type FormEvent, useState } from "react";
 
 type Props = {
-  /** Chamado com o nome válido; o pai abre o modal de categoria. */
-  onPedirCategoria: (nome: string) => void;
+  /** Chamado com o nome válido; o pai abre o modal de categoria. Devolva `false` para não limpar o campo (ex.: item duplicado). */
+  onPedirCategoria: (nome: string) => boolean | void;
   disabled?: boolean;
 };
 
@@ -20,8 +20,8 @@ export function InputAddItem({ onPedirCategoria, disabled = false }: Props) {
       return;
     }
     setErro(false);
-    onPedirCategoria(t);
-    setValor("");
+    const aceito = onPedirCategoria(t);
+    if (aceito !== false) setValor("");
   }
 
   return (

@@ -6,7 +6,8 @@ type Props = {
   aberto: boolean;
   itens: ItemCompra[];
   onFechar: () => void;
-  onConfirmar: (titulo: string, idsSelecionados: string[]) => void;
+  /** Devolva `false` para não fechar (ex.: categoria duplicada). */
+  onConfirmar: (titulo: string, idsSelecionados: string[]) => boolean | void;
 };
 
 export function ModalAgruparTipo({
@@ -77,8 +78,8 @@ export function ModalAgruparTipo({
       setErroItens(true);
       return;
     }
-    onConfirmar(t, [...selecionados]);
-    onFechar();
+    const ok = onConfirmar(t, [...selecionados]);
+    if (ok !== false) onFechar();
   }, [titulo, selecionados, onConfirmar, onFechar]);
 
   const n = selecionados.size;

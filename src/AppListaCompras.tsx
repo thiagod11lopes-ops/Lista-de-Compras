@@ -1,0 +1,556 @@
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { InputAddItem } from "./components/InputAddItem";
+import { ListaItensAdicionados } from "./components/ListaItensAdicionados";
+import { ListaFaltando } from "./components/ListaFaltando";
+import {
+  ListaMercado,
+  type ModoListaMercado,
+} from "./components/ListaMercado";
+import { ModalTipoListaMercado } from "./components/ModalTipoListaMercado";
+import { BotaoListaMercado } from "./components/BotaoListaMercado";
+import {
+  type AbaId,
+  NavegacaoAbas,
+} from "./components/NavegacaoAbas";
+import { ModalAgruparTipo } from "./components/ModalAgruparTipo";
+import { ModalCategoriaNovoItem } from "./components/ModalCategoriaNovoItem";
+import { ModalConfiguracoes } from "./components/ModalConfiguracoes";
+import { ModalTutorial } from "./components/ModalTutorial";
+import { ModalExcluirItens } from "./components/ModalExcluirItens";
+import { ModalOrdemCorredores } from "./components/ModalOrdemCorredores";
+import {
+  ModalAvisoDuplicado,
+  type TipoDuplicado,
+} from "./components/ModalAvisoDuplicado";
+import { ModalEscanearCodigo } from "./components/ModalEscanearCodigo";
+import {
+  type ResultadoMutacaoLista,
+  useListaCompras,
+} from "./hooks/useListaCompras";
+import { LembretesCadencia } from "./components/LembretesCadencia";
+import { nomeItemJaExiste, normalizarParaComparacao } from "./utils/duplicados";
+import { calcularLembretesCadencia } from "./utils/lembretesCadencia";
+import { BarraModoOffline } from "./components/BarraModoOffline";
+import { FaixaDadosLocais } from "./components/FaixaDadosLocais";
+import { SeletorListaViagem } from "./components/SeletorListaViagem";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
+import { useFirestoreListaSync } from "./hooks/useFirestoreListaSync";
+import {
+  carregarSyncPrefs,
+  salvarSyncPrefs,
+} from "./services/syncPrefs";
+import { hashSalaSync } from "./utils/salaSync";
+import { publicarEstadoSomenteLeitura } from "./services/shareReadonlyFirestore";
+
+const AbaBalancoPainel = lazy(() => import("./components/AbaBalanco"));
+
+function avisoParaDuplicado(
+  r: ResultadoMutacaoLista,
+): TipoDuplicado | null {
+  if (r.ok) return null;
+  if (r.motivo === "item_duplicado") return "item";
+  if (r.motivo === "categoria_duplicada") return "categoria";
+  return null;
+}
+
+export function AppListaCompras() {
+  const [abaAtiva, setAbaAtiva] = useState<AbaId>("adicionar");
+  const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
+  const [modalAgruparAberto, setModalAgruparAberto] = useState(false);
+  const [nomeItemParaCategoria, setNomeItemParaCategoria] = useState<
+    string | null
+  >(null);
+  const [itemEditandoId, setItemEditandoId] = useState<string | null>(null);
+  const [modalConfigAberto, setModalConfigAberto] = useState(false);
+  const [modalTutorialAberto, setModalTutorialAberto] = useState(false);
+  const [avisoDuplicado, setAvisoDuplicado] = useState<TipoDuplicado | null>(
+    null,
+  );
+  const [modalOrdemCorredoresAberto, setModalOrdemCorredoresAberto] =
+    useState(false);
+  const [modalTipoListaMercadoAberto, setModalTipoListaMercadoAberto] =
+    useState(false);
+  const [modoListaMercado, setModoListaMercado] =
+    useState<ModoListaMercado | null>(null);
+  const [modalEscanearCodigoAberto, setModalEscanearCodigoAberto] =
+    useState(false);
+  const [syncPrefs, setSyncPrefs] = useState(carregarSyncPrefs);
+
+  const online = useOnlineStatus();
+
+  const {
+    estadoLista,
+    categorias,
+    itens,
+    itensNaListaDoMercado,
+    comprasPorViagem,
+    historicoComprasFinalizadas,
+    viagensResumo,
+    viagemAtivaId,
+    selecionarViagem,
+    criarViagem,
+    renomearViagem,
+    removerViagem,
+    itensComprarNovamente,
+    hidratar,
+    adicionarItemComCategoria,
+    atualizarItem,
+    alternarComprado,
+    alternarItemNaListaDoMercado,
+    retirarDaListaDoMercado,
+    definirPrecoItem,
+    definirQuantidadeItem,
+    removerItensPorIds,
+    finalizarCompras,
+    definirModoListaMercado,
+    definirOrdemCorredoresCategoriaIds,
+    criarCategoriaEAtribuirItens,
+    zerarSistema,
+    ordemCorredoresCategoriaIds,
+    orcamentoReais,
+    definirOrcamentoReais,
+    substituirEstadoCompleto,
+  } = useListaCompras();
+
+  const syncAtivo =
+    syncPrefs.ativo && syncPrefs.roomHash != null && syncPrefs.roomHash !== "";
+
+  const { syncStatus, syncErro, firebaseConfigurado } = useFirestoreListaSync({
+    hidratar,
+    estadoLista,
+    substituirEstadoCompleto,
+    syncAtivo,
+    roomHash: syncPrefs.roomHash,
+  });
+
+  const aoLigarSync = useCallback(async (nome: string, senha: string) => {
+    const h = await hashSalaSync(nome, senha);
+    const next = { ativo: true, roomHash: h };
+    salvarSyncPrefs(next);
+    setSyncPrefs(next);
+  }, []);
+
+  const aoDesligarSync = useCallback(() => {
+    const next = { ativo: false, roomHash: null };
+    salvarSyncPrefs(next);
+    setSyncPrefs(next);
+  }, []);
+
+  const aoCriarLinkLeitura = useCallback(async () => {
+    const id = await publicarEstadoSomenteLeitura(estadoLista);
+    return `${window.location.origin}${window.location.pathname}#/ver/${id}`;
+  }, [estadoLista]);
+
+  useEffect(() => {
+    if (firebaseConfigurado || !syncPrefs.ativo) return;
+    const next = { ativo: false, roomHash: null as string | null };
+    salvarSyncPrefs(next);
+    setSyncPrefs(next);
+  }, [firebaseConfigurado, syncPrefs.ativo]);
+
+  const irParaListaMercado = useCallback(() => {
+    setAbaAtiva("mercado");
+    setModoListaMercado(null);
+    setModalTipoListaMercadoAberto(true);
+  }, []);
+
+  useEffect(() => {
+    if (abaAtiva !== "mercado") {
+      setModoListaMercado(null);
+      setModalTipoListaMercadoAberto(false);
+    }
+  }, [abaAtiva]);
+
+  const aoEscolherListaSimples = useCallback(() => {
+    definirModoListaMercado("simples");
+    setModoListaMercado("simples");
+    setModalTipoListaMercadoAberto(false);
+  }, [definirModoListaMercado]);
+
+  const aoEscolherListaCompleta = useCallback(() => {
+    definirModoListaMercado("completa");
+    setModoListaMercado("completa");
+    setModalTipoListaMercadoAberto(false);
+  }, [definirModoListaMercado]);
+
+  const fecharModalTipoListaMercado = useCallback(() => {
+    setModalTipoListaMercadoAberto(false);
+  }, []);
+
+  const aoNomeDoCodigoBarras = useCallback(
+    (nome: string) => {
+      if (nomeItemJaExiste(itens, nome)) {
+        setAvisoDuplicado("item");
+        return;
+      }
+      setItemEditandoId(null);
+      setNomeItemParaCategoria(nome);
+    },
+    [itens],
+  );
+
+  const itemEmEdicao = itemEditandoId
+    ? itens.find((i) => i.id === itemEditandoId)
+    : undefined;
+
+  const lembretesCadencia = useMemo(() => {
+    const nomesLista = new Set(
+      itens.map((i) => normalizarParaComparacao(i.nome)),
+    );
+    return calcularLembretesCadencia(
+      historicoComprasFinalizadas,
+      Date.now(),
+      nomesLista,
+    );
+  }, [historicoComprasFinalizadas, itens]);
+
+  useEffect(() => {
+    if (itemEditandoId && !itemEmEdicao) setItemEditandoId(null);
+  }, [itemEditandoId, itemEmEdicao]);
+
+  return (
+    <div className="relative min-h-dvh overflow-x-hidden">
+      {!online ? <BarraModoOffline /> : null}
+
+      <button
+        type="button"
+        disabled={hidratar}
+        onClick={() => setModalTutorialAberto(true)}
+        className="fixed left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/70 bg-white/85 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:shadow active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 sm:left-4"
+        aria-label="Tutorial — como usar o app"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          className="h-6 w-6"
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+          />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        disabled={hidratar}
+        onClick={() => setModalConfigAberto(true)}
+        className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/70 bg-white/85 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:shadow active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40 sm:right-4"
+        aria-label="Configurações"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          className="h-6 w-6"
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
+      </button>
+
+      <div
+        className={[
+          "relative mx-auto flex max-w-lg flex-col gap-5 px-4 pb-28",
+          online
+            ? "pt-[max(1.25rem,env(safe-area-inset-top))]"
+            : "pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem)]",
+        ].join(" ")}
+      >
+        <motion.div
+          layout
+          className="rounded-2xl border border-transparent bg-transparent px-0 py-1 shadow-none sm:px-1"
+        >
+          <SeletorListaViagem
+            viagens={viagensResumo}
+            viagemAtivaId={viagemAtivaId}
+            onSelecionar={selecionarViagem}
+            onCriar={criarViagem}
+            onRenomear={renomearViagem}
+            onRemover={removerViagem}
+            disabled={hidratar}
+          />
+          <div className="h-3" aria-hidden />
+          <FaixaDadosLocais visivel={online} />
+          {online ? <div className="h-1" aria-hidden /> : null}
+        </motion.div>
+
+        <BotaoListaMercado
+          disabled={hidratar}
+          ativo={abaAtiva === "mercado"}
+          onIrMercado={irParaListaMercado}
+        />
+
+        <NavegacaoAbas abaAtiva={abaAtiva} onMudarAba={setAbaAtiva} />
+
+        {hidratar ? (
+          <p className="text-center text-sm text-slate-500">Carregando…</p>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={abaAtiva}
+              role="tabpanel"
+              aria-labelledby={`tab-${abaAtiva}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="min-h-[12rem]"
+            >
+              {abaAtiva === "mercado" && modoListaMercado != null ? (
+                <ListaMercado
+                  key={viagemAtivaId}
+                  itens={itensNaListaDoMercado}
+                  categorias={categorias}
+                  ordemCorredoresCategoriaIds={ordemCorredoresCategoriaIds}
+                  modoLista={modoListaMercado}
+                  mercadoVazioMasExistemItensNoApp={
+                    itens.length > 0 && itensNaListaDoMercado.length === 0
+                  }
+                  orcamentoReais={orcamentoReais}
+                  onOrcamentoChange={definirOrcamentoReais}
+                  onAbrirOrdemCorredores={() =>
+                    setModalOrdemCorredoresAberto(true)
+                  }
+                  onToggle={alternarComprado}
+                  onPrecoChange={definirPrecoItem}
+                  onQuantidadeChange={definirQuantidadeItem}
+                  onRetirarDaListaMercado={retirarDaListaDoMercado}
+                  onFinalizarCompras={finalizarCompras}
+                />
+              ) : null}
+
+              {abaAtiva === "faltando" ? (
+                <ListaFaltando
+                  itens={itensComprarNovamente}
+                  categorias={categorias}
+                  ordemCorredoresCategoriaIds={ordemCorredoresCategoriaIds}
+                  onAlternarListaMercado={alternarItemNaListaDoMercado}
+                />
+              ) : null}
+
+              {abaAtiva === "balanco" ? (
+                <Suspense
+                  fallback={
+                    <p className="py-8 text-center text-sm text-slate-500">
+                      Carregando balanço…
+                    </p>
+                  }
+                >
+                  <AbaBalancoPainel comprasPorViagem={comprasPorViagem} />
+                </Suspense>
+              ) : null}
+
+              {abaAtiva === "adicionar" ? (
+                <section className="space-y-6" aria-labelledby="titulo-adicionar">
+                  <h2 id="titulo-adicionar" className="sr-only">
+                    Adicionar itens
+                  </h2>
+                  <LembretesCadencia
+                    lembretes={lembretesCadencia}
+                    disabled={hidratar}
+                    onEscolher={(nome) => {
+                      if (nomeItemJaExiste(itens, nome)) {
+                        setAvisoDuplicado("item");
+                        return;
+                      }
+                      setItemEditandoId(null);
+                      setNomeItemParaCategoria(nome);
+                    }}
+                  />
+                  <div className="space-y-3">
+                    <h3 className="text-base font-bold text-blue-950">
+                      Novo item
+                    </h3>
+                    <InputAddItem
+                      historicoCompras={historicoComprasFinalizadas}
+                      itensAtuais={itens}
+                      onPedirCategoria={(nome) => {
+                        if (nomeItemJaExiste(itens, nome)) {
+                          setAvisoDuplicado("item");
+                          return false;
+                        }
+                        setItemEditandoId(null);
+                        setNomeItemParaCategoria(nome);
+                        return true;
+                      }}
+                      onEscanear={() => setModalEscanearCodigoAberto(true)}
+                      disabled={hidratar}
+                    />
+                  </div>
+                  <ListaItensAdicionados
+                    itens={itens}
+                    categorias={categorias}
+                    disabled={hidratar}
+                    onEditar={(id) => {
+                      setNomeItemParaCategoria(null);
+                      setItemEditandoId(id);
+                    }}
+                    onExcluir={(id) => {
+                      const alvo = itens.find((i) => i.id === id);
+                      if (!alvo) return;
+                      if (
+                        window.confirm(
+                          `Excluir "${alvo.nome}" da lista de itens?`,
+                        )
+                      ) {
+                        removerItensPorIds([id]);
+                        if (itemEditandoId === id) setItemEditandoId(null);
+                      }
+                    }}
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setModalExcluirAberto(true)}
+                      disabled={itens.length === 0 || hidratar}
+                      className="min-h-[48px] w-full rounded-xl border border-red-200/90 bg-red-50 px-4 text-sm font-semibold text-red-800 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[10rem]"
+                    >
+                      Limpar lista
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalAgruparAberto(true)}
+                      disabled={itens.length === 0 || hidratar}
+                      className="min-h-[48px] w-full rounded-xl border border-blue-200/90 bg-blue-50 px-4 text-sm font-semibold text-blue-900 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[10rem]"
+                    >
+                      Agrupar por tipo
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </div>
+
+      <ModalExcluirItens
+        aberto={modalExcluirAberto}
+        itens={itens}
+        onFechar={() => setModalExcluirAberto(false)}
+        onExcluirSelecionados={(ids) => removerItensPorIds(ids)}
+      />
+      <ModalAgruparTipo
+        aberto={modalAgruparAberto}
+        itens={itens}
+        onFechar={() => setModalAgruparAberto(false)}
+        onConfirmar={(titulo, ids) => {
+          const r = criarCategoriaEAtribuirItens(titulo, ids);
+          const aviso = avisoParaDuplicado(r);
+          if (aviso) setAvisoDuplicado(aviso);
+          return r.ok;
+        }}
+      />
+      <ModalCategoriaNovoItem
+        aberto={
+          nomeItemParaCategoria !== null ||
+          (itemEditandoId !== null && itemEmEdicao !== undefined)
+        }
+        modoEdicao={itemEmEdicao !== undefined}
+        valorInicialEdicao={
+          itemEmEdicao
+            ? {
+                nome: itemEmEdicao.nome,
+                categoriaId: itemEmEdicao.categoriaId ?? null,
+                unidadeLista: itemEmEdicao.unidadeLista ?? "un",
+              }
+            : undefined
+        }
+        nomeItem={nomeItemParaCategoria ?? ""}
+        categorias={categorias}
+        onFechar={() => {
+          setNomeItemParaCategoria(null);
+          setItemEditandoId(null);
+        }}
+        onConfirmar={(escolha) => {
+          if (itemEmEdicao) {
+            const nome = escolha.nomeItemEditado?.trim() ?? "";
+            if (!nome) return false;
+            const r = atualizarItem(itemEmEdicao.id, {
+              nome,
+              categoriaIdExistente: escolha.categoriaIdExistente,
+              novaCategoriaTitulo: escolha.novaCategoriaTitulo,
+              unidadeLista: escolha.unidadeLista,
+            });
+            const aviso = avisoParaDuplicado(r);
+            if (aviso) setAvisoDuplicado(aviso);
+            return r.ok;
+          }
+          if (nomeItemParaCategoria) {
+            const r = adicionarItemComCategoria(
+              nomeItemParaCategoria,
+              escolha,
+            );
+            const aviso = avisoParaDuplicado(r);
+            if (aviso) setAvisoDuplicado(aviso);
+            return r.ok;
+          }
+          return true;
+        }}
+      />
+      <ModalOrdemCorredores
+        aberto={modalOrdemCorredoresAberto}
+        categorias={categorias}
+        ordemAtualIds={ordemCorredoresCategoriaIds}
+        onFechar={() => setModalOrdemCorredoresAberto(false)}
+        onSalvar={(ids) => definirOrdemCorredoresCategoriaIds(ids)}
+      />
+      <ModalTipoListaMercado
+        aberto={modalTipoListaMercadoAberto && abaAtiva === "mercado"}
+        onEscolherSimples={aoEscolherListaSimples}
+        onEscolherCompleta={aoEscolherListaCompleta}
+        onFechar={fecharModalTipoListaMercado}
+      />
+      <ModalTutorial
+        aberto={modalTutorialAberto}
+        onFechar={() => setModalTutorialAberto(false)}
+      />
+      <ModalConfiguracoes
+        aberto={modalConfigAberto}
+        onFechar={() => setModalConfigAberto(false)}
+        onZerarSistema={zerarSistema}
+        firebaseConfigurado={firebaseConfigurado}
+        syncAtivo={syncAtivo}
+        syncStatus={syncStatus}
+        syncErro={syncErro}
+        onLigarSync={aoLigarSync}
+        onDesligarSync={aoDesligarSync}
+        onCriarLinkLeitura={aoCriarLinkLeitura}
+      />
+      <ModalEscanearCodigo
+        aberto={modalEscanearCodigoAberto}
+        onFechar={() => setModalEscanearCodigoAberto(false)}
+        onNomeDetectado={aoNomeDoCodigoBarras}
+      />
+      <ModalAvisoDuplicado
+        aberto={avisoDuplicado !== null}
+        tipo={avisoDuplicado ?? "item"}
+        onFechar={() => setAvisoDuplicado(null)}
+      />
+    </div>
+  );
+}

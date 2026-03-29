@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Sala identificada por hash SHA-256 (64 hex). Quem conhece o par nome+senha
+    // gera o mesmo id — não exponha salas em sítios públicos.
+    match /listaComprasSync_v1/{docId} {
+      allow read, write: if docId.size() == 64 && docId.matches('^[a-f0-9]+$');
+    }
+
+    // Snapshots só leitura (link partilhado). Qualquer cliente pode criar com id aleatório;
+    // não atualizar nem apagar — novo link = novo documento.
+    match /listaComprasVerSomente_v1/{docId} {
+      allow read: if true;
+      allow create: if docId.size() == 64
+        && docId.matches('^[a-f0-9]+$')
+        && request.resource.data.keys().hasAll(['payload', 'criadoEm'])
+        && request.resource.data.payload is string
+        && request.resource.data.payload.size() < 900000
+        && request.resource.data.criadoEm is int;
+      allow update, delete: if false;
+    }
+  }
+}

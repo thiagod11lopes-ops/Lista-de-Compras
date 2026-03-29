@@ -5,12 +5,12 @@ const PASSOS: { titulo: string; texto: string }[] = [
   {
     titulo: "Adicionar itens",
     texto:
-      "Na aba Adicionar Itens, digite o nome e confirme. Se for um item novo, escolha uma categoria existente ou crie uma. Você pode definir a unidade (UN ou Kg) no momento de adicionar.",
+      "Na aba Adicionar Itens, digite o nome e confirme. Enquanto escreve, aparecem sugestões com base nas compras que você já finalizou (nomes parecidos e itens que costumam ir juntos na mesma compra). Se o histórico mostrar intervalos regulares entre compras do mesmo produto, também pode aparecer o bloco Lembretes por cadência. Se for um item novo, escolha uma categoria existente ou crie uma. Você pode definir a unidade (UN ou Kg) no momento de adicionar.",
   },
   {
     titulo: "Lista do Mercado",
     texto:
-      "Toque no botão azul “Lista do Mercado” (acima das abas). Lá os itens aparecem por categoria: informe preço unitário e quantidade; o subtotal é automático. Só é possível marcar como comprado depois de preencher preço e quantidade.",
+      "Toque no botão azul “Lista do Mercado” (acima das abas). Na lista completa, informe preço unitário e quantidade em reais (R$); o subtotal é automático. Pode definir um orçamento desta ida em R$: a barra mostra quanto do limite o total estimado já usa e avisa ao aproximar (80%, 90%) ou ultrapassar. Só é possível marcar como comprado depois de preencher preço e quantidade. Na lista simples não há valores nem orçamento.",
   },
   {
     titulo: "Comprar Novamente",
@@ -25,7 +25,7 @@ const PASSOS: { titulo: string; texto: string }[] = [
   {
     titulo: "Balanço",
     texto:
-      "Na aba Balanço você acompanha o histórico das compras finalizadas, totais e gráficos por período.",
+      "Na aba Balanço você acompanha o histórico das compras finalizadas, totais e gráficos por período. Pode criar várias listas por viagem (ex.: loja, feira): no topo escolha a lista ativa ou use Gerir listas. No balanço, filtre por uma lista ou veja todas em conjunto; no histórico, as finalizações aparecem agrupadas pelo nome da lista.",
   },
   {
     titulo: "Limpar e agrupar",
@@ -35,7 +35,7 @@ const PASSOS: { titulo: string; texto: string }[] = [
   {
     titulo: "Dados e privacidade",
     texto:
-      "Tudo fica salvo só neste aparelho. No ícone de engrenagem (canto superior direito) você pode zerar todos os dados, como se reinstalasse o app.",
+      "Por defeito tudo fica neste aparelho. Com Firebase configurado, nas configurações pode ligar sincronização em tempo real (mesma sala e palavra-passe em vários aparelhos) ou gerar um link só leitura: quem abrir o link vê um instantâneo das listas sem poder editar. Sem Firebase não há nuvem própria: a lista e o balanço funcionam sem internet; só o escanear código de barras precisa de rede para buscar o nome do produto. No ícone de engrenagem você pode zerar os dados locais, como se reinstalasse o app.",
   },
 ];
 

@@ -16,6 +16,12 @@ import {
   YAxis,
 } from "recharts";
 import type { CompraFinalizada } from "../types/balanco";
+
+export type CompraPorViagem = {
+  viagemId: string;
+  nomeViagem: string;
+  compras: CompraFinalizada[];
+};
 import {
   chaveMesAtual,
   gastoPorItem,
@@ -26,7 +32,7 @@ import {
 import { formatarMoedaBRL } from "../utils/moeda";
 
 type Props = {
-  comprasFinalizadas: CompraFinalizada[];
+  comprasPorViagem: CompraPorViagem[];
 };
 
 type BalançoSubaba = "visao" | "mes" | "itens" | "historico";
@@ -102,27 +108,60 @@ function TooltipPie({
   );
 }
 
-export function AbaBalanço({ comprasFinalizadas }: Props) {
+export function AbaBalanço({ comprasPorViagem }: Props) {
   const [subAba, setSubAba] = useState<BalançoSubaba>("visao");
-  const [detalheListaSimples, setDetalheListaSimples] =
-    useState<CompraFinalizada | null>(null);
+  const [filtroViagem, setFiltroViagem] = useState<string>("todas");
+  const [detalheListaSimples, setDetalheListaSimples] = useState<{
+    compra: CompraFinalizada;
+    nomeViagem: string;
+  } | null>(null);
   const [listasSimplesExpandido, setListasSimplesExpandido] = useState(false);
   const tituloModalListaSimplesId = useId();
+
+  const comprasFinalizadas = useMemo(() => {
+    const blocos =
+      filtroViagem === "todas"
+        ? comprasPorViagem
+        : comprasPorViagem.filter((v) => v.viagemId === filtroViagem);
+    return blocos.flatMap((v) => v.compras);
+  }, [comprasPorViagem, filtroViagem]);
+
+  const linhasListaSimples = useMemo(() => {
+    const out: { compra: CompraFinalizada; nomeViagem: string }[] = [];
+    for (const v of comprasPorViagem) {
+      for (const c of v.compras) {
+        if (c.tipoLista === "simples") {
+          out.push({ compra: c, nomeViagem: v.nomeViagem });
+        }
+      }
+    }
+    return out.sort((a, b) => b.compra.finalizadaEm - a.compra.finalizadaEm);
+  }, [comprasPorViagem]);
 
   const comprasComValores = useMemo(
     () => comprasFinalizadas.filter((c) => c.tipoLista !== "simples"),
     [comprasFinalizadas],
   );
-  const comprasListaSimples = useMemo(
-    () => comprasFinalizadas.filter((c) => c.tipoLista === "simples"),
-    [comprasFinalizadas],
-  );
+  const viagensParaHistorico = useMemo(() => {
+    if (filtroViagem === "todas") return comprasPorViagem;
+    return comprasPorViagem.filter((v) => v.viagemId === filtroViagem);
+  }, [comprasPorViagem, filtroViagem]);
 
   useEffect(() => {
-    if (comprasFinalizadas.length === 0) {
+    const total = comprasPorViagem.reduce((n, v) => n + v.compras.length, 0);
+    if (total === 0) {
       setSubAba("visao");
     }
-  }, [comprasFinalizadas.length]);
+  }, [comprasPorViagem]);
+
+  useEffect(() => {
+    if (
+      filtroViagem !== "todas" &&
+      !comprasPorViagem.some((v) => v.viagemId === filtroViagem)
+    ) {
+      setFiltroViagem("todas");
+    }
+  }, [comprasPorViagem, filtroViagem]);
 
   const porMes = useMemo(
     () => gastoPorMes(comprasComValores),
@@ -215,10 +254,34 @@ export function AbaBalanço({ comprasFinalizadas }: Props) {
         </h2>
       </div>
       <p className="px-1 text-sm text-slate-600">
-        Análise das compras registradas ao finalizar na Lista do Mercado.
+        Análise das compras registradas ao finalizar na Lista do Mercado. Cada
+        lista por viagem tem histórico próprio; use o filtro para ver só uma
+        delas ou todas em conjunto.
       </p>
 
-      {comprasListaSimples.length > 0 ? (
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white/60 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <label
+          htmlFor="filtro-balanco-viagem"
+          className="text-xs font-semibold text-slate-600"
+        >
+          Ver balanço de
+        </label>
+        <select
+          id="filtro-balanco-viagem"
+          value={filtroViagem}
+          onChange={(e) => setFiltroViagem(e.target.value)}
+          className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-indigo-200 sm:max-w-xs"
+        >
+          <option value="todas">Todas as listas (junto)</option>
+          {comprasPorViagem.map((v) => (
+            <option key={v.viagemId} value={v.viagemId}>
+              {v.nomeViagem}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {linhasListaSimples.length > 0 ? (
         <div className="overflow-hidden rounded-2xl border border-amber-200/90 bg-gradient-to-br from-amber-50/95 to-white shadow-sm">
           <button
             type="button"
@@ -233,8 +296,8 @@ export function AbaBalanço({ comprasFinalizadas }: Props) {
                 Listas Simples Utilizadas sem valores
               </span>
               <span className="mt-0.5 block text-xs text-amber-900/80">
-                {comprasListaSimples.length}{" "}
-                {comprasListaSimples.length === 1
+                {linhasListaSimples.length}{" "}
+                {linhasListaSimples.length === 1
                   ? "finalização"
                   : "finalizações"}{" "}
                 — toque para {listasSimplesExpandido ? "ocultar" : "expandir"}
@@ -275,17 +338,24 @@ export function AbaBalanço({ comprasFinalizadas }: Props) {
                 preço nem quantidade). Não entram nos totais e gráficos abaixo.
               </p>
               <ul className="mt-3 space-y-2">
-                {comprasListaSimples.map((c) => (
+                {linhasListaSimples.map(({ compra: c, nomeViagem }) => (
                   <li
                     key={c.id}
                     className="flex flex-col gap-2 rounded-xl border border-amber-100/90 bg-white/90 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                   >
-                    <p className="text-sm font-semibold tabular-nums text-slate-800">
-                      {fmtData(c.finalizadaEm)}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold tabular-nums text-slate-800">
+                        {fmtData(c.finalizadaEm)}
+                      </p>
+                      <p className="truncate text-xs font-medium text-amber-900/90">
+                        {nomeViagem}
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setDetalheListaSimples(c)}
+                      onClick={() =>
+                        setDetalheListaSimples({ compra: c, nomeViagem })
+                      }
                       className="min-h-[44px] shrink-0 rounded-xl border border-amber-300/90 bg-amber-100/80 px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-200/60 active:scale-[0.98]"
                     >
                       Lista de Compras Feita
@@ -301,7 +371,7 @@ export function AbaBalanço({ comprasFinalizadas }: Props) {
       <AnimatePresence>
         {detalheListaSimples ? (
           <motion.div
-            key={detalheListaSimples.id}
+            key={detalheListaSimples.compra.id}
             className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -332,14 +402,17 @@ export function AbaBalanço({ comprasFinalizadas }: Props) {
                   Itens comprados neste dia
                 </h2>
                 <p className="mt-1 text-sm font-medium tabular-nums text-slate-600">
-                  {fmtData(detalheListaSimples.finalizadaEm)}
+                  {fmtData(detalheListaSimples.compra.finalizadaEm)}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-amber-800">
+                  Lista: {detalheListaSimples.nomeViagem}
                 </p>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
                 <ul className="space-y-2">
-                  {detalheListaSimples.itens.map((linha, idx) => (
+                  {detalheListaSimples.compra.itens.map((linha, idx) => (
                     <li
-                      key={`${detalheListaSimples.id}-${idx}-${linha.nome}`}
+                      key={`${detalheListaSimples.compra.id}-${idx}-${linha.nome}`}
                       className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm font-medium text-slate-800"
                     >
                       {linha.nome}
@@ -741,65 +814,82 @@ export function AbaBalanço({ comprasFinalizadas }: Props) {
           ) : null}
 
           {subAba === "historico" ? (
-            <ul className="space-y-3">
-              {comprasFinalizadas.map((compra) => {
-                const ehSimples = compra.tipoLista === "simples";
-                return (
-                  <motion.li
-                    key={compra.id}
-                    layout
-                    initial={false}
-                    className={[
-                      "overflow-hidden rounded-2xl border bg-white/90 shadow-sm backdrop-blur-sm",
-                      ehSimples
-                        ? "border-amber-200/80"
-                        : "border-white/60",
-                    ].join(" ")}
+            <div className="space-y-6">
+              {viagensParaHistorico.map((bloco) =>
+                bloco.compras.length === 0 ? null : (
+                  <section
+                    key={bloco.viagemId}
+                    className="space-y-3"
+                    aria-label={`Histórico — ${bloco.nomeViagem}`}
                   >
-                    <div
-                      className={[
-                        "border-b px-4 py-2",
-                        ehSimples
-                          ? "border-amber-100 bg-amber-50/90"
-                          : "border-slate-100 bg-slate-50/80",
-                      ].join(" ")}
-                    >
-                      <p className="text-xs font-medium text-slate-500">
-                        {fmtData(compra.finalizadaEm)}
-                      </p>
-                      {ehSimples ? (
-                        <p className="mt-0.5 text-sm font-semibold text-amber-900">
-                          Lista simples — sem valores em reais
-                        </p>
-                      ) : (
-                        <p className="text-lg font-bold tabular-nums text-blue-950">
-                          {formatarMoedaBRL(compra.total)}
-                        </p>
-                      )}
-                    </div>
-                    <ul className="divide-y divide-slate-100 px-4 py-2">
-                      {compra.itens.map((linha, idx) => (
-                        <li
-                          key={`${compra.id}-${idx}-${linha.nome}`}
-                          className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0"
-                        >
-                          <span className="font-medium text-slate-800">
-                            {linha.nome}
-                          </span>
-                          {!ehSimples ? (
-                            <span className="shrink-0 tabular-nums text-slate-600">
-                              {linha.preco != null
-                                ? formatarMoedaBRL(linha.preco)
-                                : "—"}
-                            </span>
-                          ) : null}
-                        </li>
-                      ))}
+                    <h3 className="px-1 text-sm font-bold tracking-tight text-blue-950">
+                      {bloco.nomeViagem}
+                    </h3>
+                    <ul className="space-y-3">
+                      {[...bloco.compras]
+                        .sort((a, b) => b.finalizadaEm - a.finalizadaEm)
+                        .map((compra) => {
+                        const ehSimples = compra.tipoLista === "simples";
+                        return (
+                          <motion.li
+                            key={compra.id}
+                            layout
+                            initial={false}
+                            className={[
+                              "overflow-hidden rounded-2xl border bg-white/90 shadow-sm backdrop-blur-sm",
+                              ehSimples
+                                ? "border-amber-200/80"
+                                : "border-white/60",
+                            ].join(" ")}
+                          >
+                            <div
+                              className={[
+                                "border-b px-4 py-2",
+                                ehSimples
+                                  ? "border-amber-100 bg-amber-50/90"
+                                  : "border-slate-100 bg-slate-50/80",
+                              ].join(" ")}
+                            >
+                              <p className="text-xs font-medium text-slate-500">
+                                {fmtData(compra.finalizadaEm)}
+                              </p>
+                              {ehSimples ? (
+                                <p className="mt-0.5 text-sm font-semibold text-amber-900">
+                                  Lista simples — sem valores em reais
+                                </p>
+                              ) : (
+                                <p className="text-lg font-bold tabular-nums text-blue-950">
+                                  {formatarMoedaBRL(compra.total)}
+                                </p>
+                              )}
+                            </div>
+                            <ul className="divide-y divide-slate-100 px-4 py-2">
+                              {compra.itens.map((linha, idx) => (
+                                <li
+                                  key={`${compra.id}-${idx}-${linha.nome}`}
+                                  className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0"
+                                >
+                                  <span className="font-medium text-slate-800">
+                                    {linha.nome}
+                                  </span>
+                                  {!ehSimples ? (
+                                    <span className="shrink-0 tabular-nums text-slate-600">
+                                      {linha.preco != null
+                                        ? formatarMoedaBRL(linha.preco)
+                                        : "—"}
+                                    </span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </motion.li>
+                        );
+                      })}
                     </ul>
-                  </motion.li>
-                );
-              })}
-            </ul>
+                  </section>
+                ),
+              )}
+            </div>
           ) : null}
         </>
       )}

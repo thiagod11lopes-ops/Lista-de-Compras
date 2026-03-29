@@ -1,14 +1,21 @@
 import type { CompraFinalizada, ItemCompraFinalizada } from "../types/balanco";
 import type { Categoria, ItemCompra } from "../types/item";
+import type { ViagemLista } from "../types/viagem";
 
 const STORAGE_KEY_V1 = "lista-compras:v1";
 const STORAGE_KEY_V2 = "lista-compras:v2";
+const STORAGE_KEY_V3 = "lista-compras:v3";
 
+/** Estado persistido: várias listas nomeadas (viagens) com histórico de balanço cada uma. */
 export type EstadoLista = {
+  viagens: ViagemLista[];
+  viagemAtivaId: string;
+};
+
+type EstadoLegadoFlat = {
   categorias: Categoria[];
   itens: ItemCompra[];
   comprasFinalizadas: CompraFinalizada[];
-  /** Ordem dos corredores (IDs de categoria) na loja habitual — Lista do Mercado segue esta ordem. */
   ordemCorredoresCategoriaIds?: string[];
 };
 
@@ -97,7 +104,7 @@ function isOrdemCorredores(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((x) => typeof x === "string");
 }
 
-function isEstadoV2(value: unknown): value is EstadoLista {
+function isEstadoLegadoFlat(value: unknown): value is EstadoLegadoFlat {
   if (typeof value !== "object" || value === null) return false;
   const o = value as Record<string, unknown>;
   if (!Array.isArray(o.itens) || !Array.isArray(o.categorias)) return false;
@@ -117,25 +124,131 @@ function isEstadoV2(value: unknown): value is EstadoLista {
   return o.comprasFinalizadas.every(isCompraFinalizada);
 }
 
+function isViagemLista(value: unknown): value is ViagemLista {
+  if (typeof value !== "object" || value === null) return false;
+  const o = value as Record<string, unknown>;
+  if (
+    typeof o.id !== "string" ||
+    typeof o.nome !== "string" ||
+    typeof o.criadoEm !== "number"
+  ) {
+    return false;
+  }
+  if (!Array.isArray(o.categorias) || !o.categorias.every(isCategoria)) {
+    return false;
+  }
+  if (!Array.isArray(o.itens) || !o.itens.every(isItemCompra)) {
+    return false;
+  }
+  if (
+    o.ordemCorredoresCategoriaIds !== undefined &&
+    !isOrdemCorredores(o.ordemCorredoresCategoriaIds)
+  ) {
+    return false;
+  }
+  if (!Array.isArray(o.comprasFinalizadas)) return false;
+  if (
+    o.orcamentoReais !== undefined &&
+    o.orcamentoReais !== null &&
+    (typeof o.orcamentoReais !== "number" ||
+      !Number.isFinite(o.orcamentoReais) ||
+      o.orcamentoReais < 0)
+  ) {
+    return false;
+  }
+  return o.comprasFinalizadas.every(isCompraFinalizada);
+}
+
+function isEstadoV3(value: unknown): value is EstadoLista {
+  if (typeof value !== "object" || value === null) return false;
+  const o = value as Record<string, unknown>;
+  if (typeof o.viagemAtivaId !== "string") return false;
+  if (!Array.isArray(o.viagens) || o.viagens.length === 0) return false;
+  if (!o.viagens.every(isViagemLista)) return false;
+  return o.viagens.some((v) => v.id === o.viagemAtivaId);
+}
+
+function migrarFlatParaV3(legado: EstadoLegadoFlat): EstadoLista {
+  const id = crypto.randomUUID();
+  return {
+    viagemAtivaId: id,
+    viagens: [
+      {
+        id,
+        nome: "Minha lista",
+        criadoEm: Date.now(),
+        categorias: legado.categorias,
+        itens: legado.itens,
+        ordemCorredoresCategoriaIds: legado.ordemCorredoresCategoriaIds ?? [],
+        comprasFinalizadas: legado.comprasFinalizadas ?? [],
+      },
+    ],
+  };
+}
+
+export function criarEstadoVazio(): EstadoLista {
+  const id = crypto.randomUUID();
+  return {
+    viagemAtivaId: id,
+    viagens: [
+      {
+        id,
+        nome: "Minha lista",
+        criadoEm: Date.now(),
+        categorias: [],
+        itens: [],
+        ordemCorredoresCategoriaIds: [],
+        comprasFinalizadas: [],
+      },
+    ],
+  };
+}
+
+/** Garante estrutura mínima após JSON antigo ou dados corrompidos. */
+export function garantirEstadoValido(raw: EstadoLista): EstadoLista {
+  if (
+    !raw?.viagens ||
+    !Array.isArray(raw.viagens) ||
+    raw.viagens.length === 0
+  ) {
+    return criarEstadoVazio();
+  }
+  const ativa = raw.viagemAtivaId;
+  if (!ativa || !raw.viagens.some((v) => v.id === ativa)) {
+    return { ...raw, viagemAtivaId: raw.viagens[0].id };
+  }
+  return raw;
+}
+
 /**
  * Persistência web via localStorage.
  * Para React Native, substitua o corpo mantendo a mesma assinatura async.
  */
 export async function carregarEstado(): Promise<EstadoLista> {
   if (typeof window === "undefined") {
-    return { categorias: [], itens: [], comprasFinalizadas: [] };
+    return criarEstadoVazio();
   }
   try {
+    const rawV3 = window.localStorage.getItem(STORAGE_KEY_V3);
+    if (rawV3) {
+      const parsed: unknown = JSON.parse(rawV3);
+      if (isEstadoV3(parsed)) {
+        return garantirEstadoValido(parsed);
+      }
+    }
+
     const rawV2 = window.localStorage.getItem(STORAGE_KEY_V2);
     if (rawV2) {
       const parsed: unknown = JSON.parse(rawV2);
-      if (isEstadoV2(parsed)) {
-        return {
-          categorias: parsed.categorias,
-          itens: parsed.itens,
-          comprasFinalizadas: parsed.comprasFinalizadas ?? [],
-          ordemCorredoresCategoriaIds: parsed.ordemCorredoresCategoriaIds,
-        };
+      if (isEstadoLegadoFlat(parsed)) {
+        const next = garantirEstadoValido(migrarFlatParaV3(parsed));
+        void salvarEstado(next);
+        try {
+          window.localStorage.removeItem(STORAGE_KEY_V2);
+        } catch {
+          /* */
+        }
+        return garantirEstadoValido(next);
       }
     }
 
@@ -144,17 +257,23 @@ export async function carregarEstado(): Promise<EstadoLista> {
       const parsed: unknown = JSON.parse(rawV1);
       if (Array.isArray(parsed)) {
         const itens = parsed.filter(isItemCompra);
-        return { categorias: [], itens, comprasFinalizadas: [] };
+        const next = migrarFlatParaV3({
+          categorias: [],
+          itens,
+          comprasFinalizadas: [],
+        });
+        void salvarEstado(garantirEstadoValido(next));
+        return garantirEstadoValido(next);
       }
     }
   } catch {
     /* ignore */
   }
-  return { categorias: [], itens: [], comprasFinalizadas: [] };
+  return criarEstadoVazio();
 }
 
 export async function salvarEstado(estado: EstadoLista): Promise<void> {
   if (typeof window === "undefined") return;
   const json = JSON.stringify(estado);
-  window.localStorage.setItem(STORAGE_KEY_V2, json);
+  window.localStorage.setItem(STORAGE_KEY_V3, json);
 }

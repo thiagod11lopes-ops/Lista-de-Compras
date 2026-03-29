@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CompraFinalizada } from "../types/balanco";
 import type { Categoria, ItemCompra, UnidadeLista } from "../types/item";
+import type { ViagemLista } from "../types/viagem";
 import { linhasTotaisComprados, somaTotaisLinhas } from "../utils/itemMercado";
 import {
   carregarEstado,
+  criarEstadoVazio,
+  garantirEstadoValido,
   salvarEstado,
   type EstadoLista,
 } from "../services/storage";
@@ -11,6 +14,7 @@ import {
   nomeItemJaExiste,
   tituloCategoriaJaExiste,
 } from "../utils/duplicados";
+import { nomeViagemJaExiste, normalizarNomeViagem } from "../utils/viagem";
 
 export type ResultadoMutacaoLista =
   | { ok: true }
@@ -19,32 +23,34 @@ export type ResultadoMutacaoLista =
       motivo: "item_duplicado" | "categoria_duplicada" | "invalido";
     };
 
+export type ResultadoNovaViagem =
+  | { ok: true }
+  | { ok: false; motivo: "duplicado" | "invalido" };
+
 function ordenarPorAdicao(itens: ItemCompra[]): ItemCompra[] {
   return [...itens].sort((a, b) => a.criadoEm - b.criadoEm);
 }
 
+const seedInicial = criarEstadoVazio();
+
 export function useListaCompras() {
-  /** Modo da visita atual à Lista do Mercado (afeta a próxima finalização). */
   const modoListaMercadoRef = useRef<"simples" | "completa">("completa");
 
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [itens, setItens] = useState<ItemCompra[]>([]);
-  const [comprasFinalizadas, setComprasFinalizadas] = useState<
-    CompraFinalizada[]
-  >([]);
-  const [ordemCorredoresCategoriaIds, setOrdemCorredoresCategoriaIds] =
-    useState<string[]>([]);
+  const [viagens, setViagens] = useState<ViagemLista[]>(
+    () => seedInicial.viagens,
+  );
+  const [viagemAtivaId, setViagemAtivaId] = useState(
+    () => seedInicial.viagemAtivaId,
+  );
   const [hidratar, setHidratar] = useState(true);
 
   useEffect(() => {
     let vivo = true;
     void (async () => {
-      const estado = await carregarEstado();
+      const estado = garantirEstadoValido(await carregarEstado());
       if (vivo) {
-        setCategorias(estado.categorias);
-        setItens(ordenarPorAdicao(estado.itens));
-        setComprasFinalizadas(estado.comprasFinalizadas);
-        setOrdemCorredoresCategoriaIds(estado.ordemCorredoresCategoriaIds ?? []);
+        setViagens(estado.viagens);
+        setViagemAtivaId(estado.viagemAtivaId);
         setHidratar(false);
       }
     })();
@@ -53,53 +59,88 @@ export function useListaCompras() {
     };
   }, []);
 
+  const listaViagens = Array.isArray(viagens) ? viagens : [];
+
+  const estadoLista = useMemo(
+    (): EstadoLista => ({
+      viagens: listaViagens,
+      viagemAtivaId,
+    }),
+    [listaViagens, viagemAtivaId],
+  );
+
+  const viagemAtiva = useMemo(
+    () => listaViagens.find((v) => v.id === viagemAtivaId),
+    [listaViagens, viagemAtivaId],
+  );
+
+  const categorias = viagemAtiva?.categorias ?? [];
+  const itens = viagemAtiva?.itens ?? [];
+  const ordemCorredoresCategoriaIds =
+    viagemAtiva?.ordemCorredoresCategoriaIds ?? [];
+
+  const orcamentoReais = viagemAtiva?.orcamentoReais ?? null;
+
   useEffect(() => {
     if (hidratar) return;
-    void salvarEstado({
-      categorias,
-      itens,
-      comprasFinalizadas,
-      ordemCorredoresCategoriaIds,
-    });
-  }, [
-    categorias,
-    itens,
-    comprasFinalizadas,
-    ordemCorredoresCategoriaIds,
-    hidratar,
-  ]);
+    const estado: EstadoLista = { viagens, viagemAtivaId };
+    void salvarEstado(estado);
+  }, [viagens, viagemAtivaId, hidratar]);
 
-  /** Novas categorias entram no fim da ordem dos corredores. */
-  useEffect(() => {
-    if (hidratar) return;
-    setOrdemCorredoresCategoriaIds((prev) => {
-      const idsSet = new Set(categorias.map((c) => c.id));
-      const base = prev.filter((id) => idsSet.has(id));
-      const inBase = new Set(base);
-      const novas = categorias
-        .filter((c) => !inBase.has(c.id))
-        .sort((a, b) => a.criadoEm - b.criadoEm)
-        .map((c) => c.id);
-      return [...base, ...novas];
-    });
-  }, [categorias, hidratar]);
+  const patchViagemAtiva = useCallback(
+    (fn: (v: ViagemLista) => ViagemLista) => {
+      setViagens((prev) => {
+        const p = Array.isArray(prev) ? prev : [];
+        return p.map((v) => (v.id === viagemAtivaId ? fn(v) : v));
+      });
+    },
+    [viagemAtivaId],
+  );
 
   useEffect(() => {
-    setCategorias((prev) =>
-      prev.filter((c) => itens.some((i) => i.categoriaId === c.id)),
-    );
-  }, [itens]);
+    if (hidratar || !viagemAtivaId) return;
+    setViagens((prev) => {
+      const p = Array.isArray(prev) ? prev : [];
+      return p.map((v) => {
+        if (v.id !== viagemAtivaId) return v;
+        const idsSet = new Set(v.categorias.map((c) => c.id));
+        const base = v.ordemCorredoresCategoriaIds.filter((id) =>
+          idsSet.has(id),
+        );
+        const inBase = new Set(base);
+        const novas = v.categorias
+          .filter((c) => !inBase.has(c.id))
+          .sort((a, b) => a.criadoEm - b.criadoEm)
+          .map((c) => c.id);
+        return {
+          ...v,
+          ordemCorredoresCategoriaIds: [...base, ...novas],
+        };
+      });
+    });
+  }, [categorias, hidratar, viagemAtivaId]);
 
-  /** Itens que ainda aparecem na Lista do Mercado (não finalizados dali). */
+  useEffect(() => {
+    if (hidratar || !viagemAtivaId) return;
+    setViagens((prev) => {
+      const p = Array.isArray(prev) ? prev : [];
+      return p.map((v) => {
+        if (v.id !== viagemAtivaId) return v;
+        return {
+          ...v,
+          categorias: v.categorias.filter((c) =>
+            v.itens.some((i) => i.categoriaId === c.id),
+          ),
+        };
+      });
+    });
+  }, [itens, hidratar, viagemAtivaId]);
+
   const itensNaListaDoMercado = useMemo(
     () => itens.filter((i) => !i.excluidoDoMercado),
     [itens],
   );
 
-  /**
-   * Aba Comprar Novamente: comprados, enviados ao mercado a partir daqui (opacos),
-   * ou retirados da Lista do Mercado pelo ícone (excluídos mas ainda não comprados).
-   */
   const itensComprarNovamente = useMemo(
     () =>
       itens.filter(
@@ -116,6 +157,90 @@ export function useListaCompras() {
     const faltando = itens.length - comprados;
     return { total: itens.length, comprados, faltando };
   }, [itens]);
+
+  const comprasPorViagem = useMemo(
+    () =>
+      listaViagens.map((v) => ({
+        viagemId: v.id,
+        nomeViagem: v.nome,
+        compras: v.comprasFinalizadas,
+      })),
+    [listaViagens],
+  );
+
+  /** Todas as finalizações (todas as listas) — sugestões ao escrever no histórico. */
+  const historicoComprasFinalizadas = useMemo(
+    () => listaViagens.flatMap((v) => v.comprasFinalizadas),
+    [listaViagens],
+  );
+
+  const viagensResumo = useMemo(
+    () => listaViagens.map((v) => ({ id: v.id, nome: v.nome })),
+    [listaViagens],
+  );
+
+  const selecionarViagem = useCallback((id: string) => {
+    setViagemAtivaId(id);
+  }, []);
+
+  const criarViagem = useCallback(
+    (nome: string): ResultadoNovaViagem => {
+      const t = normalizarNomeViagem(nome);
+      if (!t) return { ok: false, motivo: "invalido" };
+      if (nomeViagemJaExiste(listaViagens, t)) {
+        return { ok: false, motivo: "duplicado" };
+      }
+      const id = crypto.randomUUID();
+      const nova: ViagemLista = {
+        id,
+        nome: t,
+        criadoEm: Date.now(),
+        categorias: [],
+        itens: [],
+        ordemCorredoresCategoriaIds: [],
+        comprasFinalizadas: [],
+      };
+      setViagens((prev) => [...(Array.isArray(prev) ? prev : []), nova]);
+      setViagemAtivaId(id);
+      return { ok: true };
+    },
+    [listaViagens],
+  );
+
+  const renomearViagem = useCallback(
+    (id: string, nome: string): ResultadoNovaViagem => {
+      const t = normalizarNomeViagem(nome);
+      if (!t) return { ok: false, motivo: "invalido" };
+      if (nomeViagemJaExiste(listaViagens, t, id)) {
+        return { ok: false, motivo: "duplicado" };
+      }
+      setViagens((prev) => {
+        const p = Array.isArray(prev) ? prev : [];
+        return p.map((v) => (v.id === id ? { ...v, nome: t } : v));
+      });
+      return { ok: true };
+    },
+    [listaViagens],
+  );
+
+  const removerViagem = useCallback((id: string): boolean => {
+    let ok = false;
+    setViagens((prev) => {
+      const p = Array.isArray(prev) ? prev : [];
+      if (p.length <= 1) return p;
+      ok = true;
+      return p.filter((v) => v.id !== id);
+    });
+    return ok;
+  }, []);
+
+  useEffect(() => {
+    const v = Array.isArray(viagens) ? viagens : [];
+    if (v.length === 0) return;
+    if (!v.some((x) => x.id === viagemAtivaId)) {
+      setViagemAtivaId(v[0].id);
+    }
+  }, [viagens, viagemAtivaId]);
 
   const adicionarItemComCategoria = useCallback(
     (
@@ -139,13 +264,14 @@ export function useListaCompras() {
       }
 
       let categoriaIdFinal: string | undefined;
+      let categoriasNext = categorias;
       if (novaTitulo) {
         const nova: Categoria = {
           id: crypto.randomUUID(),
           titulo: novaTitulo,
           criadoEm: Date.now(),
         };
-        setCategorias((prev) => [...prev, nova]);
+        categoriasNext = [...categorias, nova];
         categoriaIdFinal = nova.id;
       } else if (op.categoriaIdExistente) {
         categoriaIdFinal = op.categoriaIdExistente;
@@ -159,10 +285,15 @@ export function useListaCompras() {
         unidadeLista: op.unidadeLista ?? "un",
         ...(categoriaIdFinal ? { categoriaId: categoriaIdFinal } : {}),
       };
-      setItens((prev) => ordenarPorAdicao([...prev, novo]));
+
+      patchViagemAtiva((v) => ({
+        ...v,
+        categorias: categoriasNext,
+        itens: ordenarPorAdicao([...v.itens, novo]),
+      }));
       return { ok: true };
     },
-    [itens, categorias],
+    [itens, categorias, patchViagemAtiva],
   );
 
   const atualizarItem = useCallback(
@@ -188,20 +319,23 @@ export function useListaCompras() {
       }
 
       let categoriaIdFinal: string | undefined;
+      let categoriasNext = categorias;
       if (novaTitulo) {
         const nova: Categoria = {
           id: crypto.randomUUID(),
           titulo: novaTitulo,
           criadoEm: Date.now(),
         };
-        setCategorias((prev) => [...prev, nova]);
+        categoriasNext = [...categorias, nova];
         categoriaIdFinal = nova.id;
       } else if (op.categoriaIdExistente) {
         categoriaIdFinal = op.categoriaIdExistente;
       }
 
-      setItens((prev) =>
-        prev.map((i) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        categorias: categoriasNext,
+        itens: v.itens.map((i) => {
           if (i.id !== id) return i;
           const base: ItemCompra = {
             ...i,
@@ -213,143 +347,182 @@ export function useListaCompras() {
           }
           return { ...base, categoriaId: undefined };
         }),
-      );
+      }));
       return { ok: true };
     },
-    [itens, categorias],
+    [itens, categorias, patchViagemAtiva],
   );
 
-  const alternarComprado = useCallback((id: string) => {
-    setItens((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        const novo = !i.comprado;
-        return {
-          ...i,
-          comprado: novo,
-          ...(novo ? { retiradoParaMercadoNovamente: false } : {}),
-        };
-      }),
-    );
-  }, []);
-
-  const restaurarItemNoMercado = useCallback((id: string) => {
-    setItens((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              comprado: false,
-              preco: undefined,
-              quantidade: undefined,
-            }
-          : i,
-      ),
-    );
-  }, []);
-
-  /**
-   * Comprar Novamente: envia o item à Lista do Mercado (limpa campos) ou tira de lá.
-   * O item permanece nesta aba; quando enviado, fica opaco (`retiradoParaMercadoNovamente`).
-   */
-  const alternarItemNaListaDoMercado = useCallback((id: string) => {
-    setItens((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        if (i.retiradoParaMercadoNovamente === true) {
+  const alternarComprado = useCallback(
+    (id: string) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.map((i) => {
+          if (i.id !== id) return i;
+          const novo = !i.comprado;
           return {
             ...i,
-            retiradoParaMercadoNovamente: false,
-            excluidoDoMercado: true,
-            comprado: true,
+            comprado: novo,
+            ...(novo ? { retiradoParaMercadoNovamente: false } : {}),
+          };
+        }),
+      }));
+    },
+    [patchViagemAtiva],
+  );
+
+  const restaurarItemNoMercado = useCallback(
+    (id: string) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                comprado: false,
+                preco: undefined,
+                quantidade: undefined,
+              }
+            : i,
+        ),
+      }));
+    },
+    [patchViagemAtiva],
+  );
+
+  const alternarItemNaListaDoMercado = useCallback(
+    (id: string) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.map((i) => {
+          if (i.id !== id) return i;
+          if (i.retiradoParaMercadoNovamente === true) {
+            return {
+              ...i,
+              retiradoParaMercadoNovamente: false,
+              excluidoDoMercado: true,
+              comprado: true,
+              preco: undefined,
+              quantidade: undefined,
+            };
+          }
+          return {
+            ...i,
+            retiradoParaMercadoNovamente: true,
+            comprado: false,
             preco: undefined,
             quantidade: undefined,
+            excluidoDoMercado: false,
           };
-        }
-        return {
-          ...i,
-          retiradoParaMercadoNovamente: true,
-          comprado: false,
-          preco: undefined,
-          quantidade: undefined,
-          excluidoDoMercado: false,
-        };
-      }),
-    );
-  }, []);
+        }),
+      }));
+    },
+    [patchViagemAtiva],
+  );
 
-  /** Retira o item da Lista do Mercado; permanece nas outras abas. */
-  const retirarDaListaDoMercado = useCallback((id: string) => {
-    setItens((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        return {
-          ...i,
-          excluidoDoMercado: true,
-          preco: undefined,
-          quantidade: undefined,
-          retiradoParaMercadoNovamente: false,
-        };
-      }),
-    );
-  }, []);
+  const retirarDaListaDoMercado = useCallback(
+    (id: string) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.map((i) => {
+          if (i.id !== id) return i;
+          return {
+            ...i,
+            excluidoDoMercado: true,
+            preco: undefined,
+            quantidade: undefined,
+            retiradoParaMercadoNovamente: false,
+          };
+        }),
+      }));
+    },
+    [patchViagemAtiva],
+  );
 
-  const definirPrecoItem = useCallback((id: string, preco: number | null) => {
-    setItens((prev) =>
-      prev.map((i) => {
-        if (i.id !== id) return i;
-        if (preco === null)
-          return { ...i, preco: undefined };
-        const arredondado = Math.round(preco * 100) / 100;
-        return { ...i, preco: arredondado };
-      }),
-    );
-  }, []);
+  const definirPrecoItem = useCallback(
+    (id: string, preco: number | null) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.map((i) => {
+          if (i.id !== id) return i;
+          if (preco === null) return { ...i, preco: undefined };
+          const arredondado = Math.round(preco * 100) / 100;
+          return { ...i, preco: arredondado };
+        }),
+      }));
+    },
+    [patchViagemAtiva],
+  );
 
   const definirQuantidadeItem = useCallback(
     (id: string, valor: number | null) => {
-      setItens((prev) =>
-        prev.map((i) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.map((i) => {
           if (i.id !== id) return i;
           if (valor === null || valor <= 0 || !Number.isFinite(valor))
             return { ...i, quantidade: undefined };
           const q = Math.round(valor * 1000) / 1000;
           return { ...i, quantidade: Math.max(0.001, q) };
         }),
-      );
+      }));
     },
-    [],
+    [patchViagemAtiva],
   );
 
   const limparLista = useCallback(() => {
-    setItens([]);
-    setCategorias([]);
-  }, []);
-
-  const definirOrdemCorredoresCategoriaIds = useCallback((ids: string[]) => {
-    setOrdemCorredoresCategoriaIds(ids);
-  }, []);
-
-  /** Apaga itens, categorias e histórico do balanço (estado inicial). */
-  const zerarSistema = useCallback(() => {
-    const vazio: EstadoLista = {
-      categorias: [],
+    patchViagemAtiva((v) => ({
+      ...v,
       itens: [],
-      comprasFinalizadas: [],
-      ordemCorredoresCategoriaIds: [],
-    };
-    setItens([]);
-    setCategorias([]);
-    setComprasFinalizadas([]);
-    setOrdemCorredoresCategoriaIds([]);
+      categorias: [],
+    }));
+  }, [patchViagemAtiva]);
+
+  const definirOrdemCorredoresCategoriaIds = useCallback(
+    (ids: string[]) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        ordemCorredoresCategoriaIds: ids,
+      }));
+    },
+    [patchViagemAtiva],
+  );
+
+  const definirOrcamentoReais = useCallback(
+    (valor: number | null) => {
+      patchViagemAtiva((v) => ({
+        ...v,
+        orcamentoReais: valor,
+      }));
+    },
+    [patchViagemAtiva],
+  );
+
+  const zerarSistema = useCallback(() => {
+    const vazio = criarEstadoVazio();
+    setViagens(vazio.viagens);
+    setViagemAtivaId(vazio.viagemAtivaId);
     void salvarEstado(vazio);
   }, []);
 
-  const removerItensPorIds = useCallback((ids: Iterable<string>) => {
-    const remover = new Set(ids);
-    if (remover.size === 0) return;
-    setItens((prev) => prev.filter((i) => !remover.has(i.id)));
+  /** Substitui todo o estado (ex.: sincronização em tempo real da nuvem). */
+  const substituirEstadoCompleto = useCallback((novo: EstadoLista) => {
+    const g = garantirEstadoValido(novo);
+    setViagens(g.viagens);
+    setViagemAtivaId(g.viagemAtivaId);
   }, []);
+
+  const removerItensPorIds = useCallback(
+    (ids: Iterable<string>) => {
+      const remover = new Set(ids);
+      if (remover.size === 0) return;
+      patchViagemAtiva((v) => ({
+        ...v,
+        itens: v.itens.filter((i) => !remover.has(i.id)),
+      }));
+    },
+    [patchViagemAtiva],
+  );
 
   const definirModoListaMercado = useCallback((modo: "simples" | "completa") => {
     modoListaMercadoRef.current = modo;
@@ -357,12 +530,12 @@ export function useListaCompras() {
 
   const finalizarCompras = useCallback(() => {
     const modo = modoListaMercadoRef.current;
-    setItens((prev) => {
-      const naMercado = prev.filter((i) => !i.excluidoDoMercado);
+    patchViagemAtiva((v) => {
+      const naMercado = v.itens.filter((i) => !i.excluidoDoMercado);
 
       if (modo === "simples") {
         const comprados = naMercado.filter((i) => i.comprado);
-        if (comprados.length === 0) return prev;
+        if (comprados.length === 0) return v;
         const registro: CompraFinalizada = {
           id: crypto.randomUUID(),
           finalizadaEm: Date.now(),
@@ -370,16 +543,19 @@ export function useListaCompras() {
           total: 0,
           tipoLista: "simples",
         };
-        setComprasFinalizadas((cf) => [registro, ...cf]);
-        return prev.map((i) =>
-          !i.excluidoDoMercado && i.comprado
-            ? { ...i, excluidoDoMercado: true }
-            : i,
-        );
+        return {
+          ...v,
+          comprasFinalizadas: [registro, ...v.comprasFinalizadas],
+          itens: v.itens.map((i) =>
+            !i.excluidoDoMercado && i.comprado
+              ? { ...i, excluidoDoMercado: true }
+              : i,
+          ),
+        };
       }
 
       const linhas = linhasTotaisComprados(naMercado);
-      if (linhas.length === 0) return prev;
+      if (linhas.length === 0) return v;
 
       const total = somaTotaisLinhas(linhas);
       const registro: CompraFinalizada = {
@@ -389,15 +565,18 @@ export function useListaCompras() {
         total,
         tipoLista: "completa",
       };
-      setComprasFinalizadas((cf) => [registro, ...cf]);
 
-      return prev.map((i) =>
-        !i.excluidoDoMercado && i.comprado
-          ? { ...i, excluidoDoMercado: true }
-          : i,
-      );
+      return {
+        ...v,
+        comprasFinalizadas: [registro, ...v.comprasFinalizadas],
+        itens: v.itens.map((i) =>
+          !i.excluidoDoMercado && i.comprado
+            ? { ...i, excluidoDoMercado: true }
+            : i,
+        ),
+      };
     });
-  }, []);
+  }, [patchViagemAtiva]);
 
   const criarCategoriaEAtribuirItens = useCallback(
     (titulo: string, idsDosItens: string[]): ResultadoMutacaoLista => {
@@ -414,23 +593,30 @@ export function useListaCompras() {
         titulo: t,
         criadoEm: Date.now(),
       };
-      setCategorias((prev) => [...prev, nova]);
-      setItens((prev) =>
-        prev.map((i) =>
+      patchViagemAtiva((v) => ({
+        ...v,
+        categorias: [...v.categorias, nova],
+        itens: v.itens.map((i) =>
           idSet.has(i.id) ? { ...i, categoriaId: nova.id } : i,
         ),
-      );
+      }));
       return { ok: true };
     },
-    [categorias],
+    [categorias, patchViagemAtiva],
   );
 
   return {
+    estadoLista,
     categorias,
     itens,
     itensNaListaDoMercado,
-    comprasFinalizadas,
+    comprasPorViagem,
+    historicoComprasFinalizadas,
+    viagensResumo,
+    viagemAtivaId,
     ordemCorredoresCategoriaIds,
+    orcamentoReais,
+    definirOrcamentoReais,
     itensComprarNovamente,
     contagem,
     hidratar,
@@ -449,5 +635,10 @@ export function useListaCompras() {
     definirModoListaMercado,
     definirOrdemCorredoresCategoriaIds,
     criarCategoriaEAtribuirItens,
+    selecionarViagem,
+    criarViagem,
+    renomearViagem,
+    removerViagem,
+    substituirEstadoCompleto,
   };
 }

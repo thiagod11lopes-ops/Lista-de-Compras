@@ -29,6 +29,9 @@ type Props = {
   modoLista: ModoListaMercado;
   /** Quando não há linhas no mercado mas ainda existem itens no app (só fora desta lista). */
   mercadoVazioMasExistemItensNoApp?: boolean;
+  /** Limite em R$ para esta lista (lista completa). */
+  orcamentoReais?: number | null;
+  onOrcamentoChange?: (valor: number | null) => void;
   onAbrirOrdemCorredores: () => void;
   onToggle: (id: string) => void;
   onPrecoChange: (id: string, preco: number | null) => void;
@@ -43,6 +46,8 @@ export function ListaMercado({
   ordemCorredoresCategoriaIds,
   modoLista,
   mercadoVazioMasExistemItensNoApp = false,
+  orcamentoReais = null,
+  onOrcamentoChange,
   onAbrirOrdemCorredores,
   onToggle,
   onPrecoChange,
@@ -51,6 +56,7 @@ export function ListaMercado({
   onFinalizarCompras,
 }: Props) {
   const listaSimples = modoLista === "simples";
+  const orcamentoAtivo = !listaSimples && onOrcamentoChange != null;
   const [modalAvisoValidacao, setModalAvisoValidacao] = useState<{
     nomeItem: string;
     msg: string;
@@ -73,6 +79,39 @@ export function ListaMercado({
       return acc;
     }, 0);
   }, [itens]);
+
+  const statusOrcamento = useMemo(() => {
+    if (
+      !orcamentoAtivo ||
+      orcamentoReais == null ||
+      orcamentoReais <= 0
+    ) {
+      return null;
+    }
+    const r = totalPrecos / orcamentoReais;
+    const larguraBarraPct = Math.min(100, r * 100);
+    let barraClass =
+      "bg-emerald-500 shadow-[inset_0_-1px_0_rgba(0,0,0,0.08)]";
+    let aviso: string | null = null;
+    let avisoClass = "text-slate-600";
+    if (r >= 1) {
+      barraClass =
+        "bg-red-600 shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)]";
+      aviso = `Total estimado ultrapassou o orçamento (${formatarMoedaBRL(orcamentoReais)}).`;
+      avisoClass = "font-semibold text-red-800";
+    } else if (r >= 0.9) {
+      barraClass =
+        "bg-orange-500 shadow-[inset_0_-1px_0_rgba(0,0,0,0.08)]";
+      aviso = `Quase no limite do orçamento: cerca de ${(r * 100).toFixed(0)}% usados.`;
+      avisoClass = "font-medium text-orange-900";
+    } else if (r >= 0.8) {
+      barraClass =
+        "bg-amber-400 shadow-[inset_0_-1px_0_rgba(0,0,0,0.06)]";
+      aviso = `Aproximando do orçamento: cerca de ${(r * 100).toFixed(0)}% usados.`;
+      avisoClass = "text-amber-950";
+    }
+    return { r, larguraBarraPct, barraClass, aviso, avisoClass };
+  }, [orcamentoAtivo, orcamentoReais, totalPrecos]);
 
   const resumoFinalizar = useMemo(() => {
     const linhasPorItem = linhasTotaisComprados(itens);
@@ -247,6 +286,92 @@ export function ListaMercado({
               </button>
             </div>
           </div>
+          {orcamentoAtivo ? (
+            <div className="mt-3 border-t border-blue-200/70 pt-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                <label
+                  htmlFor="orcamento-mercado"
+                  className="text-sm font-medium text-slate-700"
+                >
+                  Orçamento desta ida (R$)
+                </label>
+                <div className="flex flex-1 flex-wrap items-center gap-2 sm:min-w-[12rem]">
+                  <input
+                    id="orcamento-mercado"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    placeholder="Ex.: 300"
+                    value={orcamentoReais ?? ""}
+                    onChange={(e) => {
+                      if (!onOrcamentoChange) return;
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        onOrcamentoChange(null);
+                        return;
+                      }
+                      const n = parseFloat(raw);
+                      if (!Number.isNaN(n) && n >= 0) {
+                        onOrcamentoChange(Math.round(n * 100) / 100);
+                      }
+                    }}
+                    className="min-h-[44px] min-w-[7rem] flex-1 rounded-xl border border-blue-200/90 bg-white/95 px-3 py-2 text-base font-medium tabular-nums text-slate-900 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 sm:max-w-[10rem]"
+                  />
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    onClick={() => onOrcamentoChange?.(null)}
+                  >
+                    Limpar orçamento
+                  </button>
+                </div>
+              </div>
+              <p className="mt-1.5 text-xs leading-snug text-slate-600">
+                Valores em reais (R$). O total estimado compara com este limite
+                na lista completa.
+              </p>
+              {statusOrcamento ? (
+                <div className="mt-3 space-y-2">
+                  <div
+                    className="h-2.5 overflow-hidden rounded-full bg-slate-200/90"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(statusOrcamento.larguraBarraPct)}
+                    aria-label="Percentual do orçamento usado pelo total estimado"
+                  >
+                    <div
+                      className={[
+                        "h-full rounded-full transition-[width] duration-300 ease-out",
+                        statusOrcamento.barraClass,
+                      ].join(" ")}
+                      style={{ width: `${statusOrcamento.larguraBarraPct}%` }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                    <span className="tabular-nums text-slate-700">
+                      {formatarMoedaBRL(totalPrecos)} de{" "}
+                      {formatarMoedaBRL(orcamentoReais ?? 0)}
+                    </span>
+                    <span className="tabular-nums font-medium text-slate-600">
+                      {(statusOrcamento.r * 100).toFixed(0)}% do orçamento
+                    </span>
+                  </div>
+                  {statusOrcamento.aviso ? (
+                    <p
+                      role="status"
+                      className={["text-sm", statusOrcamento.avisoClass].join(
+                        " ",
+                      )}
+                    >
+                      {statusOrcamento.aviso}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

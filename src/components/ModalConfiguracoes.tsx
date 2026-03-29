@@ -1,16 +1,33 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useId, useState } from "react";
+import { SecaoLinkLeitura } from "./SecaoLinkLeitura";
+import { SecaoSyncFirebase } from "./SecaoSyncFirebase";
+import type { SyncStatusUi } from "../hooks/useFirestoreListaSync";
 
 type Props = {
   aberto: boolean;
   onFechar: () => void;
   onZerarSistema: () => void;
+  firebaseConfigurado: boolean;
+  syncAtivo: boolean;
+  syncStatus: SyncStatusUi;
+  syncErro: string | null;
+  onLigarSync: (nome: string, senha: string) => void | Promise<void>;
+  onDesligarSync: () => void;
+  onCriarLinkLeitura: () => Promise<string>;
 };
 
 export function ModalConfiguracoes({
   aberto,
   onFechar,
   onZerarSistema,
+  firebaseConfigurado,
+  syncAtivo,
+  syncStatus,
+  syncErro,
+  onLigarSync,
+  onDesligarSync,
+  onCriarLinkLeitura,
 }: Props) {
   const tituloId = useId();
   const tituloConfirmId = useId();
@@ -140,12 +157,33 @@ export function ModalConfiguracoes({
                     Configurações
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    Opções gerais do aplicativo. Os dados ficam apenas neste
-                    aparelho.
+                    Opções gerais. Por defeito os dados ficam neste aparelho;
+                    pode também ligar sincronização em tempo real (Firebase)
+                    mais abaixo.
+                  </p>
+                  <p className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs leading-relaxed text-slate-700">
+                    <span className="font-semibold text-blue-950">
+                      Sem internet:
+                    </span>{" "}
+                    a lista e o balanço continuam a funcionar. Só o{" "}
+                    <span className="font-medium">escanear código de barras</span>{" "}
+                    precisa de rede para procurar o nome do produto.
                   </p>
                 </div>
 
                 <div className="space-y-3 px-5 py-4">
+                  <SecaoSyncFirebase
+                    firebaseConfigurado={firebaseConfigurado}
+                    syncAtivo={syncAtivo}
+                    syncStatus={syncStatus}
+                    syncErro={syncErro}
+                    onLigar={onLigarSync}
+                    onDesligar={onDesligarSync}
+                  />
+                  <SecaoLinkLeitura
+                    firebaseConfigurado={firebaseConfigurado}
+                    onCriarLink={onCriarLinkLeitura}
+                  />
                   <div className="rounded-2xl border border-red-200/90 bg-red-50/80 px-4 py-3">
                     <p className="text-sm font-semibold text-red-900">
                       Zerar sistema

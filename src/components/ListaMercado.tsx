@@ -31,6 +31,16 @@ const FAB_POS_STORAGE_KEY = "listaMercado-fab-pos-v1";
 
 type FabPos = { left: number; top: number };
 
+/** Margem inferior extra (barra do Safari / home indicator no iPhone). */
+function viewportSize(): { vw: number; vh: number } {
+  if (typeof window === "undefined") return { vw: 320, vh: 600 };
+  const vv = window.visualViewport;
+  return {
+    vw: vv?.width ?? window.innerWidth,
+    vh: vv?.height ?? window.innerHeight,
+  };
+}
+
 function clampFabPos(
   p: FabPos,
   panelW: number,
@@ -39,9 +49,11 @@ function clampFabPos(
   vh: number,
 ): FabPos {
   const m = 8;
+  const bottomSafe = 36;
+  const maxTop = Math.max(m, vh - panelH - m - bottomSafe);
   return {
     left: Math.min(Math.max(m, p.left), Math.max(m, vw - panelW - m)),
-    top: Math.min(Math.max(m, p.top), Math.max(m, vh - panelH - m)),
+    top: Math.min(Math.max(m, p.top), maxTop),
   };
 }
 
@@ -153,9 +165,10 @@ function PainelFlutuanteResumoMercado({
     if (typeof window === "undefined") return { left: 16, top: 120 };
     const saved = loadFabPos();
     if (saved) return saved;
+    const { vw, vh } = viewportSize();
     return {
-      left: Math.max(8, window.innerWidth - 272),
-      top: Math.max(8, window.innerHeight - 200),
+      left: Math.max(8, vw - 272),
+      top: Math.max(8, vh - 200),
     };
   });
 
@@ -163,7 +176,8 @@ function PainelFlutuanteResumoMercado({
     const el = rootRef.current;
     if (!el || typeof window === "undefined") return;
     const r = el.getBoundingClientRect();
-    setPos((p) => clampFabPos(p, r.width, r.height, window.innerWidth, window.innerHeight));
+    const { vw, vh } = viewportSize();
+    setPos((p) => clampFabPos(p, r.width, r.height, vw, vh));
   }, []);
 
   useLayoutEffect(() => {
@@ -173,7 +187,13 @@ function PainelFlutuanteResumoMercado({
   useEffect(() => {
     const onResize = () => reajustarAoViewport();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("scroll", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("scroll", onResize);
+    };
   }, [reajustarAoViewport]);
 
   const estilo = estiloPainelFlutuante(listaSimples, statusOrcamento);
@@ -196,8 +216,7 @@ function PainelFlutuanteResumoMercado({
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
     const el = rootRef.current;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const { vw, vh } = viewportSize();
     const w = el?.offsetWidth ?? 260;
     const h = el?.offsetHeight ?? 120;
     setPos(
@@ -241,7 +260,7 @@ function PainelFlutuanteResumoMercado({
       role="complementary"
       aria-label="Resumo da lista do mercado (arraste pela barra lateral)"
       className={[
-        "fixed z-[120] flex w-[min(17.5rem,calc(100vw-1rem))] select-none overflow-hidden rounded-2xl border shadow-xl backdrop-blur-sm",
+        "fixed z-[200] flex w-[min(17.5rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] select-none overflow-hidden rounded-2xl border shadow-xl backdrop-blur-sm [padding-bottom:max(0.25rem,env(safe-area-inset-bottom))]",
         estilo.panel,
       ].join(" ")}
       style={{ left: pos.left, top: pos.top }}
@@ -573,34 +592,12 @@ export function ListaMercado({
           {resumoMercadoExpandido ? (
         <div
           id="resumo-mercado-anchor"
-          className="relative rounded-2xl border border-blue-200/90 bg-gradient-to-r from-blue-600/10 via-white to-blue-50/90 px-4 py-3 shadow-sm"
+          className="isolate overflow-visible rounded-2xl border border-blue-200/90 bg-gradient-to-r from-blue-600/10 via-white to-blue-50/90 px-4 py-3 shadow-sm"
           role="status"
           aria-live="polite"
         >
-          <button
-            type="button"
-            onClick={() => setResumoMercadoExpandido(false)}
-            className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200/80 bg-white/95 text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-95"
-            aria-label="Minimizar para painel flutuante"
-            title="Painel flutuante"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="h-5 w-5"
-              aria-hidden
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
-              />
-            </svg>
-          </button>
-          <div className="flex flex-col gap-3 pr-10 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <div className="flex items-start gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">
               {listaSimples ? (
                 <>
@@ -646,6 +643,30 @@ export function ListaMercado({
                 Finalizar compras
               </button>
             </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setResumoMercadoExpandido(false)}
+              className="relative z-20 flex h-11 min-h-[44px] w-11 min-w-[44px] shrink-0 touch-manipulation items-center justify-center rounded-xl border border-blue-200/80 bg-white/95 text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-95"
+              aria-label="Minimizar para painel flutuante"
+              title="Painel flutuante"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-5 w-5 shrink-0"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+                />
+              </svg>
+            </button>
           </div>
           {orcamentoAtivo ? (
             <div className="mt-3 border-t border-blue-200/70 pt-3">

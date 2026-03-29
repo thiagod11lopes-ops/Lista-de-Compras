@@ -17,13 +17,13 @@ export function FaixaDadosLocais({ visivel, disabled = false }: Props) {
 
   useEffect(() => {
     if (!aberto) return;
-    function fecharSeFora(e: MouseEvent) {
+    function fecharSeFora(e: PointerEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setAberto(false);
       }
     }
-    document.addEventListener("mousedown", fecharSeFora);
-    return () => document.removeEventListener("mousedown", fecharSeFora);
+    document.addEventListener("pointerdown", fecharSeFora);
+    return () => document.removeEventListener("pointerdown", fecharSeFora);
   }, [aberto]);
 
   useEffect(() => {
@@ -35,8 +35,6 @@ export function FaixaDadosLocais({ visivel, disabled = false }: Props) {
     return () => window.removeEventListener("keydown", onEsc);
   }, [aberto]);
 
-  if (!visivel) return null;
-
   return (
     <div ref={wrapRef} className="relative">
       <button
@@ -46,7 +44,7 @@ export function FaixaDadosLocais({ visivel, disabled = false }: Props) {
         aria-controls={panelId}
         aria-haspopup="dialog"
         onClick={() => setAberto((v) => !v)}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/85 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:shadow active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl border border-white/70 bg-white/85 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:shadow active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
         aria-label="Dados neste aparelho — informação"
       >
         <svg
@@ -83,9 +81,19 @@ export function FaixaDadosLocais({ visivel, disabled = false }: Props) {
               <span className="font-semibold text-blue-950">
                 Dados neste aparelho.
               </span>{" "}
-              A lista e o balanço funcionam sem internet; nada é enviado para
-              um servidor. Só a leitura de código de barras precisa de rede para
-              procurar o nome do produto.
+              {visivel ? (
+                <>
+                  A lista e o balanço funcionam sem internet; nada é enviado
+                  para um servidor. Só a leitura de código de barras precisa de
+                  rede para procurar o nome do produto.
+                </>
+              ) : (
+                <>
+                  Sem ligação à internet: tudo continua guardado só aqui. A
+                  barra no topo lembra o modo offline. Só o escanear código de
+                  barras precisa de rede para procurar o nome do produto.
+                </>
+              )}
             </p>
           </motion.div>
         ) : null}

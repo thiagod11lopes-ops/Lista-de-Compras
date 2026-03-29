@@ -41,7 +41,10 @@ import { calcularLembretesCadencia } from "./utils/lembretesCadencia";
 import { BarraModoOffline } from "./components/BarraModoOffline";
 import { FaixaDadosLocais } from "./components/FaixaDadosLocais";
 import { ModalGerirListas } from "./components/ModalGerirListas";
-import { SeletorListaViagem } from "./components/SeletorListaViagem";
+import {
+  SeletorListaViagem,
+  SeletorListaViagemIcone,
+} from "./components/SeletorListaViagem";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useFirestoreListaSync } from "./hooks/useFirestoreListaSync";
 import {
@@ -252,6 +255,12 @@ export function AppListaCompras() {
       </div>
 
       <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex items-start gap-2 sm:right-4">
+        <SeletorListaViagemIcone
+          viagens={viagensResumo}
+          viagemAtivaId={viagemAtivaId}
+          onSelecionar={selecionarViagem}
+          disabled={hidratar}
+        />
         <button
           type="button"
           disabled={hidratar}
@@ -315,7 +324,7 @@ export function AppListaCompras() {
       >
         <motion.div
           layout
-          className="rounded-2xl border border-transparent bg-transparent px-0 py-1 shadow-none sm:px-1"
+          className="hidden rounded-2xl border border-transparent bg-transparent px-0 py-1 shadow-none sm:px-1 md:block"
         >
           <SeletorListaViagem
             viagens={viagensResumo}

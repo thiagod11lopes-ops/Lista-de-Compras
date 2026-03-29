@@ -25,7 +25,7 @@ const PASSOS: { titulo: string; texto: string }[] = [
   {
     titulo: "Balanço",
     texto:
-      "Na aba Balanço você acompanha o histórico das compras finalizadas, totais e gráficos por período. Pode criar várias listas por viagem (ex.: loja, feira): no topo escolha a lista ativa ou use Gerir listas. No balanço, filtre por uma lista ou veja todas em conjunto; no histórico, as finalizações aparecem agrupadas pelo nome da lista.",
+      "Na aba Balanço você acompanha o histórico das compras finalizadas, totais e gráficos por período. Pode criar várias listas por viagem (ex.: loja, feira): no topo escolha a lista ativa ou use o ícone de listas ao lado de Configurações para gerir listas. No balanço, filtre por uma lista ou veja todas em conjunto; no histórico, as finalizações aparecem agrupadas pelo nome da lista.",
   },
   {
     titulo: "Limpar e agrupar",

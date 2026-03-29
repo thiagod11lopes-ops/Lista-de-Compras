@@ -1,5 +1,13 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import type { Categoria, ItemCompra } from "../types/item";
 import {
   podeMarcarComoComprado,
@@ -18,6 +26,315 @@ import { Item } from "./Item";
 import { ModalAvisoPendentesFinalizar } from "./ModalAvisoPendentesFinalizar";
 import { ModalAvisoValidacaoMercado } from "./ModalAvisoValidacaoMercado";
 import { ModalFinalizarCompras } from "./ModalFinalizarCompras";
+
+const FAB_POS_STORAGE_KEY = "listaMercado-fab-pos-v1";
+
+type FabPos = { left: number; top: number };
+
+function clampFabPos(
+  p: FabPos,
+  panelW: number,
+  panelH: number,
+  vw: number,
+  vh: number,
+): FabPos {
+  const m = 8;
+  return {
+    left: Math.min(Math.max(m, p.left), Math.max(m, vw - panelW - m)),
+    top: Math.min(Math.max(m, p.top), Math.max(m, vh - panelH - m)),
+  };
+}
+
+function loadFabPos(): FabPos | null {
+  try {
+    const raw = localStorage.getItem(FAB_POS_STORAGE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as FabPos;
+    if (typeof p.left === "number" && typeof p.top === "number") return p;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function saveFabPos(p: FabPos) {
+  try {
+    localStorage.setItem(FAB_POS_STORAGE_KEY, JSON.stringify(p));
+  } catch {
+    /* ignore */
+  }
+}
+
+type StatusOrcamentoChip = {
+  r: number;
+  larguraBarraPct: number;
+  barraClass: string;
+  aviso: string | null;
+  avisoClass: string;
+};
+
+function estiloPainelFlutuante(
+  listaSimples: boolean,
+  status: StatusOrcamentoChip | null,
+): { panel: string; btn: string } {
+  if (listaSimples) {
+    return {
+      panel:
+        "border-emerald-200/90 bg-gradient-to-br from-emerald-50/95 via-white to-white shadow-lg shadow-emerald-900/20",
+      btn:
+        "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-md shadow-emerald-600/30",
+    };
+  }
+  if (!status) {
+    return {
+      panel:
+        "border-blue-200/90 bg-gradient-to-br from-blue-50/95 via-white to-white shadow-lg shadow-blue-900/20",
+      btn:
+        "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-md shadow-emerald-500/25",
+    };
+  }
+  const { r } = status;
+  if (r >= 1) {
+    return {
+      panel:
+        "border-red-300/90 bg-gradient-to-br from-red-50/95 via-white to-white shadow-lg shadow-red-900/20",
+      btn: "bg-gradient-to-r from-red-600 to-red-500 shadow-md shadow-red-600/30",
+    };
+  }
+  if (r >= 0.9) {
+    return {
+      panel:
+        "border-orange-300/90 bg-gradient-to-br from-orange-50/95 via-white to-white shadow-lg shadow-orange-900/20",
+      btn:
+        "bg-gradient-to-r from-orange-600 to-orange-500 shadow-md shadow-orange-600/30",
+    };
+  }
+  if (r >= 0.8) {
+    return {
+      panel:
+        "border-amber-300/90 bg-gradient-to-br from-amber-50/95 via-white to-white shadow-lg shadow-amber-900/20",
+      btn:
+        "bg-gradient-to-r from-amber-600 to-amber-500 shadow-md shadow-amber-600/25",
+    };
+  }
+  return {
+    panel:
+      "border-emerald-200/90 bg-gradient-to-br from-emerald-50/95 via-white to-white shadow-lg shadow-emerald-900/20",
+    btn:
+      "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-md shadow-emerald-600/30",
+  };
+}
+
+type PainelFlutuanteResumoMercadoProps = {
+  listaSimples: boolean;
+  totalPrecos: number;
+  statusOrcamento: StatusOrcamentoChip | null;
+  temComprados: boolean;
+  onFinalizarClick: () => void;
+  onExpandir: () => void;
+};
+
+function PainelFlutuanteResumoMercado({
+  listaSimples,
+  totalPrecos,
+  statusOrcamento,
+  temComprados,
+  onFinalizarClick,
+  onExpandir,
+}: PainelFlutuanteResumoMercadoProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    pid: number;
+    startX: number;
+    startY: number;
+    orig: FabPos;
+  } | null>(null);
+  const [pos, setPos] = useState<FabPos>(() => {
+    if (typeof window === "undefined") return { left: 16, top: 120 };
+    const saved = loadFabPos();
+    if (saved) return saved;
+    return {
+      left: Math.max(8, window.innerWidth - 272),
+      top: Math.max(8, window.innerHeight - 200),
+    };
+  });
+
+  const reajustarAoViewport = useCallback(() => {
+    const el = rootRef.current;
+    if (!el || typeof window === "undefined") return;
+    const r = el.getBoundingClientRect();
+    setPos((p) => clampFabPos(p, r.width, r.height, window.innerWidth, window.innerHeight));
+  }, []);
+
+  useLayoutEffect(() => {
+    reajustarAoViewport();
+  }, [reajustarAoViewport]);
+
+  useEffect(() => {
+    const onResize = () => reajustarAoViewport();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [reajustarAoViewport]);
+
+  const estilo = estiloPainelFlutuante(listaSimples, statusOrcamento);
+
+  const onHandlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = {
+      pid: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      orig: { ...pos },
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onHandlePointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || e.pointerId !== d.pid) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    const el = rootRef.current;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = el?.offsetWidth ?? 260;
+    const h = el?.offsetHeight ?? 120;
+    setPos(
+      clampFabPos(
+        { left: d.orig.left + dx, top: d.orig.top + dy },
+        w,
+        h,
+        vw,
+        vh,
+      ),
+    );
+  };
+
+  const onHandlePointerUp = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || e.pointerId !== d.pid) return;
+    dragRef.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    setPos((p) => {
+      saveFabPos(p);
+      return p;
+    });
+  };
+
+  const onAreaExpandirClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    onExpandir();
+  };
+
+  const onFinalizarPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+  };
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      role="complementary"
+      aria-label="Resumo da lista do mercado (arraste pela barra lateral)"
+      className={[
+        "fixed z-[120] flex w-[min(17.5rem,calc(100vw-1rem))] select-none overflow-hidden rounded-2xl border shadow-xl backdrop-blur-sm",
+        estilo.panel,
+      ].join(" ")}
+      style={{ left: pos.left, top: pos.top }}
+    >
+      <button
+        type="button"
+        aria-label="Arrastar painel"
+        onPointerDown={onHandlePointerDown}
+        onPointerMove={onHandlePointerMove}
+        onPointerUp={onHandlePointerUp}
+        onPointerCancel={onHandlePointerUp}
+        className="flex w-9 shrink-0 cursor-grab touch-none items-center justify-center border-r border-black/5 bg-black/[0.03] active:cursor-grabbing"
+      >
+        <span className="flex flex-col gap-0.5" aria-hidden>
+          <span className="h-0.5 w-3 rounded-full bg-slate-400/80" />
+          <span className="h-0.5 w-3 rounded-full bg-slate-400/80" />
+          <span className="h-0.5 w-3 rounded-full bg-slate-400/80" />
+        </span>
+      </button>
+      <div
+        className={[
+          "flex min-w-0 flex-1 cursor-pointer flex-col p-2.5 pl-2",
+          listaSimples || !statusOrcamento ? "gap-2" : "gap-1",
+        ].join(" ")}
+        onClick={onAreaExpandirClick}
+        aria-label="Abrir resumo completo no topo da lista"
+      >
+        {listaSimples ? (
+          <>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-900/80">
+              Lista simples
+            </p>
+            <p className="text-xs leading-snug text-slate-600">
+              Toque para abrir o resumo completo
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+              Total estimado
+            </p>
+            {statusOrcamento ? (
+              <div
+                className="h-1.5 w-full shrink-0 overflow-hidden rounded-full bg-slate-200/90"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(statusOrcamento.larguraBarraPct)}
+                aria-label="Percentual do orçamento usado pelo total estimado"
+              >
+                <div
+                  className={[
+                    "h-full rounded-full transition-[width] duration-300 ease-out",
+                    statusOrcamento.barraClass,
+                  ].join(" ")}
+                  style={{
+                    width: `${statusOrcamento.larguraBarraPct}%`,
+                  }}
+                />
+              </div>
+            ) : null}
+            <div className="flex min-w-0 items-baseline justify-between gap-2 leading-none">
+              <p className="min-w-0 text-xl font-bold tabular-nums text-slate-900">
+                {formatarMoedaBRL(totalPrecos)}
+              </p>
+              {statusOrcamento ? (
+                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-600">
+                  {(statusOrcamento.r * 100).toFixed(0)}%
+                </span>
+              ) : null}
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          disabled={!temComprados}
+          onPointerDown={onFinalizarPointerDown}
+          onClick={(e) => {
+            e.stopPropagation();
+            onFinalizarClick();
+          }}
+          className={[
+            "min-h-[44px] w-full rounded-xl px-3 py-2 text-sm font-semibold text-white transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
+            estilo.btn,
+          ].join(" ")}
+        >
+          Finalizar compras
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export type ModoListaMercado = "simples" | "completa";
 
@@ -64,6 +381,9 @@ export function ListaMercado({
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
   const [modalAvisoPendentesFinalizar, setModalAvisoPendentesFinalizar] =
     useState(false);
+  const [painelOrcamentoVisivel, setPainelOrcamentoVisivel] = useState(true);
+  /** `true`: cartão completo no fluxo; `false`: só o painel flutuante (total + finalizar). */
+  const [resumoMercadoExpandido, setResumoMercadoExpandido] = useState(true);
 
   const blocos = blocosPorCategoria(
     itens,
@@ -143,6 +463,27 @@ export function ListaMercado({
     const faltando = itens.length - comprados;
     return { comprados, faltando };
   }, [itens]);
+
+  const aoFinalizarComprasMercado = useCallback(() => {
+    if (contagemMercado.faltando > 0) {
+      setModalAvisoPendentesFinalizar(true);
+    } else {
+      setModalFinalizarAberto(true);
+    }
+  }, [contagemMercado.faltando]);
+
+  const estavaResumoExpandido = useRef(resumoMercadoExpandido);
+  useEffect(() => {
+    if (resumoMercadoExpandido && !estavaResumoExpandido.current) {
+      const id = window.setTimeout(() => {
+        document
+          .getElementById("resumo-mercado-anchor")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+      return () => clearTimeout(id);
+    }
+    estavaResumoExpandido.current = resumoMercadoExpandido;
+  }, [resumoMercadoExpandido]);
 
   const aoAlternarMercado = useCallback(
     (item: ItemCompra) => {
@@ -228,12 +569,38 @@ export function ListaMercado({
       </div>
 
       {itens.length > 0 ? (
+        <>
+          {resumoMercadoExpandido ? (
         <div
-          className="rounded-2xl border border-blue-200/90 bg-gradient-to-r from-blue-600/10 via-white to-blue-50/90 px-4 py-3 shadow-sm"
+          id="resumo-mercado-anchor"
+          className="relative rounded-2xl border border-blue-200/90 bg-gradient-to-r from-blue-600/10 via-white to-blue-50/90 px-4 py-3 shadow-sm"
           role="status"
           aria-live="polite"
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          <button
+            type="button"
+            onClick={() => setResumoMercadoExpandido(false)}
+            className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200/80 bg-white/95 text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-95"
+            aria-label="Minimizar para painel flutuante"
+            title="Painel flutuante"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="h-5 w-5"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+              />
+            </svg>
+          </button>
+          <div className="flex flex-col gap-3 pr-10 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <div className="min-w-0 flex-1">
               {listaSimples ? (
                 <>
@@ -273,13 +640,7 @@ export function ListaMercado({
               <button
                 type="button"
                 disabled={!temComprados}
-                onClick={() => {
-                  if (contagemMercado.faltando > 0) {
-                    setModalAvisoPendentesFinalizar(true);
-                  } else {
-                    setModalFinalizarAberto(true);
-                  }
-                }}
+                onClick={aoFinalizarComprasMercado}
                 className="min-h-[48px] w-full shrink-0 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/25 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Finalizar compras
@@ -288,91 +649,213 @@ export function ListaMercado({
           </div>
           {orcamentoAtivo ? (
             <div className="mt-3 border-t border-blue-200/70 pt-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-                <label
-                  htmlFor="orcamento-mercado"
-                  className="text-sm font-medium text-slate-700"
-                >
-                  Orçamento desta ida (R$)
-                </label>
-                <div className="flex flex-1 flex-wrap items-center gap-2 sm:min-w-[12rem]">
-                  <input
-                    id="orcamento-mercado"
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step={0.01}
-                    placeholder="Ex.: 300"
-                    value={orcamentoReais ?? ""}
-                    onChange={(e) => {
-                      if (!onOrcamentoChange) return;
-                      const raw = e.target.value;
-                      if (raw === "") {
-                        onOrcamentoChange(null);
-                        return;
-                      }
-                      const n = parseFloat(raw);
-                      if (!Number.isNaN(n) && n >= 0) {
-                        onOrcamentoChange(Math.round(n * 100) / 100);
-                      }
-                    }}
-                    className="min-h-[44px] min-w-[7rem] flex-1 rounded-xl border border-blue-200/90 bg-white/95 px-3 py-2 text-base font-medium tabular-nums text-slate-900 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 sm:max-w-[10rem]"
-                  />
+              {!painelOrcamentoVisivel ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    {statusOrcamento ? (
+                      <>
+                        <div
+                          className="h-2 overflow-hidden rounded-full bg-slate-200/90"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.round(
+                            statusOrcamento.larguraBarraPct,
+                          )}
+                          aria-label="Percentual do orçamento usado pelo total estimado"
+                        >
+                          <div
+                            className={[
+                              "h-full rounded-full transition-[width] duration-300 ease-out",
+                              statusOrcamento.barraClass,
+                            ].join(" ")}
+                            style={{
+                              width: `${statusOrcamento.larguraBarraPct}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs sm:text-sm">
+                          <span className="tabular-nums text-slate-700">
+                            {formatarMoedaBRL(totalPrecos)} de{" "}
+                            {formatarMoedaBRL(orcamentoReais ?? 0)}
+                          </span>
+                          <span className="tabular-nums font-medium text-slate-600">
+                            {(statusOrcamento.r * 100).toFixed(0)}% do
+                            orçamento
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-sm font-medium text-slate-700">
+                        Orçamento desta ida (R$)
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    className="shrink-0 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    onClick={() => onOrcamentoChange?.(null)}
+                    onClick={() =>
+                      setPainelOrcamentoVisivel((v) => !v)
+                    }
+                    aria-expanded={false}
+                    className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl border border-blue-200/80 bg-white/90 px-3 py-2 text-xs font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50/90"
                   >
-                    Limpar orçamento
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="h-4 w-4"
+                      aria-hidden
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                    Mostrar
                   </button>
                 </div>
-              </div>
-              <p className="mt-1.5 text-xs leading-snug text-slate-600">
-                Valores em reais (R$). O total estimado compara com este limite
-                na lista completa.
-              </p>
-              {statusOrcamento ? (
-                <div className="mt-3 space-y-2">
-                  <div
-                    className="h-2.5 overflow-hidden rounded-full bg-slate-200/90"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(statusOrcamento.larguraBarraPct)}
-                    aria-label="Percentual do orçamento usado pelo total estimado"
-                  >
-                    <div
-                      className={[
-                        "h-full rounded-full transition-[width] duration-300 ease-out",
-                        statusOrcamento.barraClass,
-                      ].join(" ")}
-                      style={{ width: `${statusOrcamento.larguraBarraPct}%` }}
-                    />
-                  </div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                    <span className="tabular-nums text-slate-700">
-                      {formatarMoedaBRL(totalPrecos)} de{" "}
-                      {formatarMoedaBRL(orcamentoReais ?? 0)}
+              ) : null}
+              {painelOrcamentoVisivel ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-slate-700">
+                      Orçamento desta ida (R$)
                     </span>
-                    <span className="tabular-nums font-medium text-slate-600">
-                      {(statusOrcamento.r * 100).toFixed(0)}% do orçamento
-                    </span>
-                  </div>
-                  {statusOrcamento.aviso ? (
-                    <p
-                      role="status"
-                      className={["text-sm", statusOrcamento.avisoClass].join(
-                        " ",
-                      )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPainelOrcamentoVisivel((v) => !v)
+                      }
+                      aria-expanded
+                      className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl border border-blue-200/80 bg-white/90 px-3 py-2 text-xs font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50/90"
                     >
-                      {statusOrcamento.aviso}
-                    </p>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={1.5}
+                        stroke="currentColor"
+                        className="h-4 w-4"
+                        aria-hidden
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
+                        />
+                      </svg>
+                      Ocultar
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                    <label htmlFor="orcamento-mercado" className="sr-only">
+                      Valor do orçamento em reais
+                    </label>
+                    <div className="flex flex-1 flex-wrap items-center gap-2 sm:min-w-[12rem]">
+                      <input
+                        id="orcamento-mercado"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={0.01}
+                        placeholder="Ex.: 300"
+                        value={orcamentoReais ?? ""}
+                        onChange={(e) => {
+                          if (!onOrcamentoChange) return;
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            onOrcamentoChange(null);
+                            return;
+                          }
+                          const n = parseFloat(raw);
+                          if (!Number.isNaN(n) && n >= 0) {
+                            onOrcamentoChange(Math.round(n * 100) / 100);
+                          }
+                        }}
+                        className="min-h-[44px] min-w-[7rem] flex-1 rounded-xl border border-blue-200/90 bg-white/95 px-3 py-2 text-base font-medium tabular-nums text-slate-900 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 sm:max-w-[10rem]"
+                      />
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        onClick={() => onOrcamentoChange?.(null)}
+                      >
+                        Limpar orçamento
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-xs leading-snug text-slate-600">
+                    Valores em reais (R$). O total estimado compara com este
+                    limite na lista completa.
+                  </p>
+                  {statusOrcamento ? (
+                    <div className="mt-3 space-y-2">
+                      <div
+                        className="h-2.5 overflow-hidden rounded-full bg-slate-200/90"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(
+                          statusOrcamento.larguraBarraPct,
+                        )}
+                        aria-label="Percentual do orçamento usado pelo total estimado"
+                      >
+                        <div
+                          className={[
+                            "h-full rounded-full transition-[width] duration-300 ease-out",
+                            statusOrcamento.barraClass,
+                          ].join(" ")}
+                          style={{
+                            width: `${statusOrcamento.larguraBarraPct}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                        <span className="tabular-nums text-slate-700">
+                          {formatarMoedaBRL(totalPrecos)} de{" "}
+                          {formatarMoedaBRL(orcamentoReais ?? 0)}
+                        </span>
+                        <span className="tabular-nums font-medium text-slate-600">
+                          {(statusOrcamento.r * 100).toFixed(0)}% do orçamento
+                        </span>
+                      </div>
+                      {statusOrcamento.aviso ? (
+                        <p
+                          role="status"
+                          className={[
+                            "text-sm",
+                            statusOrcamento.avisoClass,
+                          ].join(" ")}
+                        >
+                          {statusOrcamento.aviso}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
-                </div>
+                </>
               ) : null}
             </div>
           ) : null}
         </div>
+          ) : null}
+          {!resumoMercadoExpandido ? (
+            <PainelFlutuanteResumoMercado
+              listaSimples={listaSimples}
+              totalPrecos={totalPrecos}
+              statusOrcamento={statusOrcamento}
+              temComprados={temComprados}
+              onFinalizarClick={aoFinalizarComprasMercado}
+              onExpandir={() => setResumoMercadoExpandido(true)}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {itens.length === 0 ? (

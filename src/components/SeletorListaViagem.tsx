@@ -8,6 +8,9 @@ type Props = {
   viagemAtivaId: string;
   onSelecionar: (id: string) => void;
   disabled?: boolean;
+  /** Só na aba Iniciar compras, quando existem categorias. */
+  onAbrirOrdemCorredores?: () => void;
+  mostrarBotaoCorredores?: boolean;
 };
 
 /**
@@ -19,28 +22,44 @@ export function SeletorListaViagem({
   viagemAtivaId,
   onSelecionar,
   disabled = false,
+  onAbrirOrdemCorredores,
+  mostrarBotaoCorredores = false,
 }: Props) {
+  const exibirOrdemCorredores =
+    mostrarBotaoCorredores && onAbrirOrdemCorredores != null;
+
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <label className="sr-only" htmlFor="seletor-viagem-inline">
-        Lista de compras ativa
-      </label>
-      <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Lista
-      </span>
-      <select
-        id="seletor-viagem-inline"
-        disabled={disabled || viagens.length === 0}
-        value={viagemAtivaId}
-        onChange={(e) => onSelecionar(e.target.value)}
-        className="min-h-[44px] w-full min-w-0 flex-1 truncate rounded-xl border-2 border-blue-100 bg-white/90 px-3 text-sm font-semibold text-blue-950 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 disabled:opacity-50"
-      >
-        {viagens.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.nome}
-          </option>
-        ))}
-      </select>
+    <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <label className="sr-only" htmlFor="seletor-viagem-inline">
+          Lista de compras ativa
+        </label>
+        <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Lista
+        </span>
+        <select
+          id="seletor-viagem-inline"
+          disabled={disabled || viagens.length === 0}
+          value={viagemAtivaId}
+          onChange={(e) => onSelecionar(e.target.value)}
+          className="min-h-[44px] w-full min-w-0 flex-1 truncate rounded-xl border-2 border-blue-100 bg-white/90 px-3 text-sm font-semibold text-blue-950 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 disabled:opacity-50"
+        >
+          {viagens.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+      {exibirOrdemCorredores ? (
+        <button
+          type="button"
+          onClick={onAbrirOrdemCorredores}
+          className="shrink-0 rounded-xl border border-blue-200/90 bg-white/90 px-3 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-[0.98] sm:self-center sm:whitespace-nowrap"
+        >
+          Ordem dos corredores
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -51,6 +70,8 @@ export function SeletorListaViagemIcone({
   viagemAtivaId,
   onSelecionar,
   disabled = false,
+  onAbrirOrdemCorredores,
+  mostrarBotaoCorredores = false,
 }: Props) {
   const [aberto, setAberto] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -150,6 +171,18 @@ export function SeletorListaViagemIcone({
                 </option>
               ))}
             </select>
+            {mostrarBotaoCorredores && onAbrirOrdemCorredores ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onAbrirOrdemCorredores();
+                  setAberto(false);
+                }}
+                className="mt-3 w-full rounded-xl border border-blue-200/90 bg-white/90 px-3 py-2.5 text-sm font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-[0.98]"
+              >
+                Ordem dos corredores
+              </button>
+            ) : null}
           </motion.div>
         ) : null}
       </AnimatePresence>

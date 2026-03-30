@@ -13,6 +13,9 @@ type Props = {
   onRenomear: (id: string, nome: string) => ResultadoNovaViagem;
   onRemover: (id: string) => boolean;
   disabled?: boolean;
+  /** Mostrar atalho para ordenar corredores (há categorias). */
+  mostrarOrdemCorredores?: boolean;
+  onAbrirOrdemCorredores?: () => void;
 };
 
 export function ModalGerirListas({
@@ -24,6 +27,8 @@ export function ModalGerirListas({
   onRenomear,
   onRemover,
   disabled = false,
+  mostrarOrdemCorredores = false,
+  onAbrirOrdemCorredores,
 }: Props) {
   const tituloId = useId();
   const [novoNome, setNovoNome] = useState("");
@@ -120,6 +125,16 @@ export function ModalGerirListas({
                 Cada lista tem os seus itens, categorias e histórico no balanço
                 (ex.: loja habitual, feira).
               </p>
+              {mostrarOrdemCorredores && onAbrirOrdemCorredores ? (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={onAbrirOrdemCorredores}
+                  className="mt-3 w-full rounded-xl border border-blue-200/90 bg-white/90 px-3 py-2.5 text-sm font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Ordem dos corredores
+                </button>
+              ) : null}
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">

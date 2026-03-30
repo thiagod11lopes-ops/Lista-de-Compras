@@ -167,8 +167,8 @@ function PainelFlutuanteResumoMercado({
     if (saved) return saved;
     const { vw, vh } = viewportSize();
     return {
-      left: Math.max(8, vw - 272),
-      top: Math.max(8, vh - 200),
+      left: Math.max(8, vw - 136),
+      top: Math.max(8, vh - 120),
     };
   });
 
@@ -217,8 +217,8 @@ function PainelFlutuanteResumoMercado({
     const dy = e.clientY - d.startY;
     const el = rootRef.current;
     const { vw, vh } = viewportSize();
-    const w = el?.offsetWidth ?? 260;
-    const h = el?.offsetHeight ?? 120;
+    const w = el?.offsetWidth ?? 130;
+    const h = el?.offsetHeight ?? 60;
     setPos(
       clampFabPos(
         { left: d.orig.left + dx, top: d.orig.top + dy },
@@ -260,7 +260,7 @@ function PainelFlutuanteResumoMercado({
       role="complementary"
       aria-label="Resumo da lista do mercado (arraste pela barra lateral)"
       className={[
-        "fixed z-[200] flex w-[min(17.5rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] select-none overflow-hidden rounded-2xl border shadow-xl backdrop-blur-sm [padding-bottom:max(0.25rem,env(safe-area-inset-bottom))]",
+        "fixed z-[200] flex w-[min(8.75rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] select-none overflow-hidden rounded-xl border shadow-lg backdrop-blur-sm [padding-bottom:max(0.125rem,env(safe-area-inset-bottom))]",
         estilo.panel,
       ].join(" ")}
       style={{ left: pos.left, top: pos.top }}
@@ -272,39 +272,39 @@ function PainelFlutuanteResumoMercado({
         onPointerMove={onHandlePointerMove}
         onPointerUp={onHandlePointerUp}
         onPointerCancel={onHandlePointerUp}
-        className="flex w-9 shrink-0 cursor-grab touch-none items-center justify-center border-r border-black/5 bg-black/[0.03] active:cursor-grabbing"
+        className="flex w-5 shrink-0 cursor-grab touch-none items-center justify-center border-r border-black/5 bg-black/[0.03] active:cursor-grabbing"
       >
-        <span className="flex flex-col gap-0.5" aria-hidden>
-          <span className="h-0.5 w-3 rounded-full bg-slate-400/80" />
-          <span className="h-0.5 w-3 rounded-full bg-slate-400/80" />
-          <span className="h-0.5 w-3 rounded-full bg-slate-400/80" />
+        <span className="flex flex-col gap-px" aria-hidden>
+          <span className="h-px w-2 rounded-full bg-slate-400/80" />
+          <span className="h-px w-2 rounded-full bg-slate-400/80" />
+          <span className="h-px w-2 rounded-full bg-slate-400/80" />
         </span>
       </button>
       <div
         className={[
-          "flex min-w-0 flex-1 cursor-pointer flex-col p-2.5 pl-2",
-          listaSimples || !statusOrcamento ? "gap-2" : "gap-1",
+          "flex min-w-0 flex-1 cursor-pointer flex-col px-1.5 py-1.5 pl-1",
+          listaSimples || !statusOrcamento ? "gap-1" : "gap-0.5",
         ].join(" ")}
         onClick={onAreaExpandirClick}
         aria-label="Abrir resumo completo no topo da lista"
       >
         {listaSimples ? (
           <>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-900/80">
+            <p className="text-[8px] font-semibold uppercase leading-tight tracking-wide text-emerald-900/80">
               Lista simples
             </p>
-            <p className="text-xs leading-snug text-slate-600">
-              Toque para abrir o resumo completo
+            <p className="text-[9px] leading-tight text-slate-600">
+              Toque p/ resumo
             </p>
           </>
         ) : (
           <>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-              Total estimado
+            <p className="text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-600">
+              Total estim.
             </p>
             {statusOrcamento ? (
               <div
-                className="h-1.5 w-full shrink-0 overflow-hidden rounded-full bg-slate-200/90"
+                className="h-1 w-full shrink-0 overflow-hidden rounded-full bg-slate-200/90"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
@@ -322,12 +322,12 @@ function PainelFlutuanteResumoMercado({
                 />
               </div>
             ) : null}
-            <div className="flex min-w-0 items-baseline justify-between gap-2 leading-none">
-              <p className="min-w-0 text-xl font-bold tabular-nums text-slate-900">
+            <div className="flex min-w-0 items-baseline justify-between gap-1 leading-none">
+              <p className="min-w-0 text-xs font-bold tabular-nums text-slate-900">
                 {formatarMoedaBRL(totalPrecos)}
               </p>
               {statusOrcamento ? (
-                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-600">
+                <span className="shrink-0 text-[9px] font-semibold tabular-nums text-slate-600">
                   {(statusOrcamento.r * 100).toFixed(0)}%
                 </span>
               ) : null}
@@ -343,11 +343,13 @@ function PainelFlutuanteResumoMercado({
             onFinalizarClick();
           }}
           className={[
-            "min-h-[44px] w-full rounded-xl px-3 py-2 text-sm font-semibold text-white transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
+            "min-h-[32px] w-full rounded-lg px-1 py-1 text-center text-[9px] font-semibold leading-tight text-white transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
             estilo.btn,
           ].join(" ")}
         >
-          Finalizar compras
+          Finalizar
+          <br />
+          compras
         </button>
       </div>
     </div>,
@@ -368,7 +370,6 @@ type Props = {
   /** Limite em R$ para esta lista (lista completa). */
   orcamentoReais?: number | null;
   onOrcamentoChange?: (valor: number | null) => void;
-  onAbrirOrdemCorredores: () => void;
   onToggle: (id: string) => void;
   onPrecoChange: (id: string, preco: number | null) => void;
   onQuantidadeChange: (id: string, valor: number | null) => void;
@@ -384,7 +385,6 @@ export function ListaMercado({
   mercadoVazioMasExistemItensNoApp = false,
   orcamentoReais = null,
   onOrcamentoChange,
-  onAbrirOrdemCorredores,
   onToggle,
   onPrecoChange,
   onQuantidadeChange,
@@ -533,7 +533,7 @@ export function ListaMercado({
   );
 
   return (
-    <section className="space-y-3" aria-labelledby="titulo-mercado">
+    <section className="space-y-3" aria-label="Iniciar compras">
       <ModalAvisoValidacaoMercado
         aberto={!listaSimples && modalAvisoValidacao != null}
         nomeItem={modalAvisoValidacao?.nomeItem ?? ""}
@@ -561,32 +561,6 @@ export function ListaMercado({
         listaSimples={listaSimples}
         blocosResumoSimples={blocosResumoSimples}
       />
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <div className="flex min-w-0 items-center gap-3">
-          <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/90 text-2xl leading-none shadow-md shadow-blue-900/15 backdrop-blur-sm"
-            aria-hidden
-          >
-            🛒
-          </span>
-          <h2
-            id="titulo-mercado"
-            className="text-lg font-bold tracking-tight text-blue-950 [text-shadow:0_1px_0_rgb(255_255_255/0.85),0_2px_6px_rgb(15_23_42/0.35),0_4px_12px_rgb(15_23_42/0.12)]"
-          >
-            Lista do Mercado
-          </h2>
-        </div>
-        {categorias.length > 0 ? (
-          <button
-            type="button"
-            onClick={onAbrirOrdemCorredores}
-            className="shrink-0 rounded-xl border border-blue-200/90 bg-white/90 px-3 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-[0.98]"
-          >
-            Ordem dos corredores
-          </button>
-        ) : null}
-      </div>
-
       {itens.length > 0 ? (
         <>
           {resumoMercadoExpandido ? (

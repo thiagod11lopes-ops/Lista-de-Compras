@@ -8,9 +8,9 @@ const PASSOS: { titulo: string; texto: string }[] = [
       "Na aba Adicionar Itens, digite o nome e confirme. Enquanto escreve, aparecem sugestões com base nas compras que você já finalizou (nomes parecidos e itens que costumam ir juntos na mesma compra). Se o histórico mostrar intervalos regulares entre compras do mesmo produto, também pode aparecer o bloco Lembretes por cadência. Se for um item novo, escolha uma categoria existente ou crie uma. Você pode definir a unidade (UN ou Kg) no momento de adicionar.",
   },
   {
-    titulo: "Lista do Mercado",
+    titulo: "Iniciar compras",
     texto:
-      "Toque no botão azul “Lista do Mercado” (acima das abas). Na lista completa, informe preço unitário e quantidade em reais (R$); o subtotal é automático. Pode definir um orçamento desta ida em R$: a barra mostra quanto do limite o total estimado já usa e avisa ao aproximar (80%, 90%) ou ultrapassar. Só é possível marcar como comprado depois de preencher preço e quantidade. Na lista simples não há valores nem orçamento.",
+      "Toque na primeira aba do menu inferior, “Iniciar Compras” (ícone de play). Na lista completa, informe preço unitário e quantidade em reais (R$); o subtotal é automático. Pode definir um orçamento desta ida em R$: a barra mostra quanto do limite o total estimado já usa e avisa ao aproximar (80%, 90%) ou ultrapassar. Só é possível marcar como comprado depois de preencher preço e quantidade. Na lista simples não há valores nem orçamento.",
   },
   {
     titulo: "Comprar Novamente",

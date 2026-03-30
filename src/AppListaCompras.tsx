@@ -15,7 +15,6 @@ import {
   type ModoListaMercado,
 } from "./components/ListaMercado";
 import { ModalTipoListaMercado } from "./components/ModalTipoListaMercado";
-import { BotaoListaMercado } from "./components/BotaoListaMercado";
 import {
   type AbaId,
   NavegacaoAbas,
@@ -260,6 +259,12 @@ export function AppListaCompras() {
           viagemAtivaId={viagemAtivaId}
           onSelecionar={selecionarViagem}
           disabled={hidratar}
+          mostrarBotaoCorredores={
+            abaAtiva === "mercado" && categorias.length > 0
+          }
+          onAbrirOrdemCorredores={() =>
+            setModalOrdemCorredoresAberto(true)
+          }
         />
         <button
           type="button"
@@ -331,17 +336,22 @@ export function AppListaCompras() {
             viagemAtivaId={viagemAtivaId}
             onSelecionar={selecionarViagem}
             disabled={hidratar}
+            mostrarBotaoCorredores={
+              abaAtiva === "mercado" && categorias.length > 0
+            }
+            onAbrirOrdemCorredores={() =>
+              setModalOrdemCorredoresAberto(true)
+            }
           />
           <div className="h-3" aria-hidden />
         </motion.div>
 
-        <BotaoListaMercado
+        <NavegacaoAbas
+          abaAtiva={abaAtiva}
+          onMudarAba={setAbaAtiva}
+          onIrListaMercado={irParaListaMercado}
           disabled={hidratar}
-          ativo={abaAtiva === "mercado"}
-          onIrMercado={irParaListaMercado}
         />
-
-        <NavegacaoAbas abaAtiva={abaAtiva} onMudarAba={setAbaAtiva} />
 
         {hidratar ? (
           <p className="text-center text-sm text-slate-500">Carregando…</p>
@@ -369,9 +379,6 @@ export function AppListaCompras() {
                   }
                   orcamentoReais={orcamentoReais}
                   onOrcamentoChange={definirOrcamentoReais}
-                  onAbrirOrdemCorredores={() =>
-                    setModalOrdemCorredoresAberto(true)
-                  }
                   onToggle={alternarComprado}
                   onPrecoChange={definirPrecoItem}
                   onQuantidadeChange={definirQuantidadeItem}
@@ -574,6 +581,11 @@ export function AppListaCompras() {
         onRenomear={renomearViagem}
         onRemover={removerViagem}
         disabled={hidratar}
+        mostrarOrdemCorredores={categorias.length > 0}
+        onAbrirOrdemCorredores={() => {
+          setModalGerirListasAberto(false);
+          setModalOrdemCorredoresAberto(true);
+        }}
       />
       <ModalConfiguracoes
         aberto={modalConfigAberto}

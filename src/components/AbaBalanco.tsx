@@ -254,7 +254,7 @@ export function AbaBalanço({ comprasPorViagem }: Props) {
         </h2>
       </div>
       <p className="px-1 text-sm text-slate-600">
-        Análise das compras registradas ao finalizar na Lista do Mercado. Cada
+        Análise das compras registradas ao finalizar em Iniciar compras. Cada
         lista por viagem tem histórico próprio; use o filtro para ver só uma
         delas ou todas em conjunto.
       </p>
@@ -436,13 +436,13 @@ export function AbaBalanço({ comprasPorViagem }: Props) {
 
       {comprasFinalizadas.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-white/50 px-4 py-10 text-center text-sm text-slate-600">
-          Ainda não há compras finalizadas. Na aba Lista do Mercado, marque os
+          Ainda não há compras finalizadas. Na aba Iniciar compras, marque os
           itens e use &quot;Finalizar compras&quot; para registrar aqui.
         </p>
       ) : comprasComValores.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-white/50 px-4 py-8 text-center text-sm text-slate-600">
           Ainda não há compras com valores em reais. Use a{" "}
-          <strong>lista completa</strong> na Lista do Mercado para ver totais e
+          <strong>lista completa</strong> em Iniciar compras para ver totais e
           gráficos nesta área.
         </p>
       ) : (

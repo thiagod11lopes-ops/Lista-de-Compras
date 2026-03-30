@@ -1,5 +1,12 @@
 import { motion } from "framer-motion";
-import { type FormEvent, useId, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CompraFinalizada } from "../types/balanco";
 import type { ItemCompra } from "../types/item";
 import { normalizarParaComparacao } from "../utils/duplicados";
@@ -11,6 +18,8 @@ import {
 type Props = {
   /** Chamado com o nome válido; o pai abre o modal de categoria. Devolva `false` para não limpar o campo (ex.: item duplicado). */
   onPedirCategoria: (nome: string) => boolean | void;
+  /** Indica se há texto não vazio no campo (para o realce da aba Adicionar e o botão laranja). */
+  onTextoNovoItemChange?: (temTexto: boolean) => void;
   /** Abre o leitor de código de barras (câmara). */
   onEscanear?: () => void;
   /** Finalizações de todas as listas — base para sugestões por histórico. */
@@ -18,18 +27,30 @@ type Props = {
   /** Itens da lista ativa (para não sugerir duplicados). */
   itensAtuais?: ItemCompra[];
   disabled?: boolean;
+  /** Realce laranja no botão Adicionar e cor laranja no placeholder animado — desligar quando já há itens e lista nomeada (a digitação simulada continua em cinza). */
+  tutorialLaranjaAtivo?: boolean;
 };
 
 export function InputAddItem({
   onPedirCategoria,
+  onTextoNovoItemChange,
   onEscanear,
   historicoCompras = [],
   itensAtuais = [],
   disabled = false,
+  tutorialLaranjaAtivo = true,
 }: Props) {
+  const TEXTO_DIGITADO_PLACEHOLDER = "Escreva o nome do item aqui";
   const [valor, setValor] = useState("");
   const [erro, setErro] = useState(false);
+  const [placeholderDigitado, setPlaceholderDigitado] = useState("");
+  const [animacaoPlaceholderAtiva, setAnimacaoPlaceholderAtiva] =
+    useState(true);
+  /** Para ao clicar em Adicionar (ou ao abrir o modal de categoria) até o campo limpar ou o utilizador editar. */
+  const [animacoesAdicionarCessadas, setAnimacoesAdicionarCessadas] =
+    useState(false);
   const listboxId = useId();
+  const timeoutAnimacaoRef = useRef<number | null>(null);
 
   const nomesListaNorm = useMemo(
     () =>
@@ -54,8 +75,10 @@ export function InputAddItem({
   function escolherNome(nome: string) {
     if (disabled) return;
     setErro(false);
+    setAnimacoesAdicionarCessadas(true);
     const aceito = onPedirCategoria(nome);
     if (aceito !== false) setValor("");
+    else setAnimacoesAdicionarCessadas(false);
   }
 
   function handleSubmit(e: FormEvent) {
@@ -68,6 +91,50 @@ export function InputAddItem({
     }
     escolherNome(t);
   }
+
+  useEffect(() => {
+    if (!animacaoPlaceholderAtiva || disabled) return;
+    let i = 0;
+
+    const limpar = () => {
+      if (timeoutAnimacaoRef.current != null) {
+        window.clearTimeout(timeoutAnimacaoRef.current);
+        timeoutAnimacaoRef.current = null;
+      }
+    };
+
+    const tick = () => {
+      if (!animacaoPlaceholderAtiva || disabled) return;
+      if (i <= TEXTO_DIGITADO_PLACEHOLDER.length) {
+        setPlaceholderDigitado(TEXTO_DIGITADO_PLACEHOLDER.slice(0, i));
+        i += 1;
+        timeoutAnimacaoRef.current = window.setTimeout(tick, 75);
+        return;
+      }
+      timeoutAnimacaoRef.current = window.setTimeout(() => {
+        setPlaceholderDigitado("");
+        i = 0;
+        tick();
+      }, 1200);
+    };
+
+    tick();
+    return limpar;
+  }, [animacaoPlaceholderAtiva, disabled]);
+
+  const comTextoNoNome = valor.trim().length > 0;
+  const temRealceAdicionar =
+    comTextoNoNome &&
+    !animacoesAdicionarCessadas &&
+    tutorialLaranjaAtivo;
+
+  useEffect(() => {
+    if (valor === "") setAnimacoesAdicionarCessadas(false);
+  }, [valor]);
+
+  useEffect(() => {
+    onTextoNovoItemChange?.(temRealceAdicionar);
+  }, [temRealceAdicionar, onTextoNovoItemChange]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
@@ -82,7 +149,11 @@ export function InputAddItem({
             name="item"
             autoComplete="off"
             enterKeyHint="done"
-            placeholder="Ex.: leite integral"
+            placeholder={
+              animacaoPlaceholderAtiva
+                ? placeholderDigitado
+                : "Escreva o nome do item aqui"
+            }
             value={valor}
             disabled={disabled}
             role="combobox"
@@ -91,10 +162,17 @@ export function InputAddItem({
             aria-autocomplete="list"
             onChange={(e) => {
               setValor(e.target.value);
+              setAnimacoesAdicionarCessadas(false);
               if (erro) setErro(false);
             }}
+            onFocus={() => setAnimacaoPlaceholderAtiva(false)}
             className={[
-              "min-h-[52px] w-full rounded-2xl border-2 bg-white/90 px-4 text-base text-slate-900 shadow-inner outline-none transition placeholder:text-slate-400",
+              "min-h-[52px] w-full rounded-2xl border-2 bg-white/90 px-4 text-base text-slate-900 shadow-inner outline-none transition",
+              animacaoPlaceholderAtiva && !disabled
+                ? tutorialLaranjaAtivo
+                  ? "placeholder:font-medium placeholder:text-orange-600"
+                  : "placeholder:font-medium placeholder:text-slate-500"
+                : "placeholder:text-slate-400",
               erro
                 ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200"
                 : "border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200",
@@ -158,14 +236,62 @@ export function InputAddItem({
           ) : null}
         </div>
         <div className="flex min-h-[52px] shrink-0 gap-2">
-          <motion.button
-            type="submit"
-            whileTap={{ scale: disabled ? 1 : 0.97 }}
-            disabled={disabled}
-            className="min-h-[52px] rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 px-6 text-base font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:from-blue-700 hover:to-blue-600 active:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Adicionar
-          </motion.button>
+          <div className="relative shrink-0">
+            {temRealceAdicionar ? (
+              <motion.div
+                role="status"
+                aria-live="polite"
+                initial={{ opacity: 0.96, y: -1 }}
+                animate={{ opacity: [1, 0.9, 1], y: [0, -2, 0] }}
+                transition={{
+                  duration: 1.35,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className="pointer-events-none absolute -top-14 left-1/2 z-20 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
+              >
+                Clique aqui para adicionar o item a sua lista
+                <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-orange-300/95 bg-white" />
+                <span className="absolute -bottom-3 left-[46%] h-1.5 w-1.5 rounded-full bg-white/95 ring-1 ring-orange-200" />
+                <span className="absolute -bottom-5 left-[42%] h-1 w-1 rounded-full bg-white/95 ring-1 ring-orange-200" />
+              </motion.div>
+            ) : null}
+            <motion.button
+              type="submit"
+              whileTap={{ scale: disabled ? 1 : 0.97 }}
+              animate={
+                temRealceAdicionar
+                  ? {
+                      scale: [1, 1.04, 1],
+                      opacity: [1, 0.86, 1],
+                      boxShadow: [
+                        "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                        "0 0 0 12px rgba(251, 146, 60, 0)",
+                        "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                      ],
+                    }
+                  : undefined
+              }
+              transition={
+                temRealceAdicionar
+                  ? {
+                      duration: 1.2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }
+                  : undefined
+              }
+              disabled={disabled}
+              className={[
+                "min-h-[52px] rounded-2xl px-6 text-base font-semibold text-white shadow-lg transition active:shadow-md disabled:cursor-not-allowed disabled:opacity-50",
+                temRealceAdicionar
+                  ? "bg-gradient-to-r from-orange-600 to-orange-500 shadow-orange-500/30 hover:from-orange-700 hover:to-orange-600"
+                  : "bg-gradient-to-r from-blue-600 to-blue-500 shadow-blue-500/30 hover:from-blue-700 hover:to-blue-600",
+              ].join(" ")}
+            >
+              Adicionar
+            </motion.button>
+          </div>
           {onEscanear ? (
             <motion.button
               type="button"

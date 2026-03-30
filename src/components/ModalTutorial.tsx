@@ -42,9 +42,15 @@ const PASSOS: { titulo: string; texto: string }[] = [
 type Props = {
   aberto: boolean;
   onFechar: () => void;
+  /** Lista ainda vazia: reforça o 1.º passo e combina com o realce na aba. */
+  mostrarDicaPrimeiroPasso?: boolean;
 };
 
-export function ModalTutorial({ aberto, onFechar }: Props) {
+export function ModalTutorial({
+  aberto,
+  onFechar,
+  mostrarDicaPrimeiroPasso = false,
+}: Props) {
   const tituloId = useId();
 
   useEffect(() => {
@@ -101,6 +107,13 @@ export function ModalTutorial({ aberto, onFechar }: Props) {
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Passo a passo do aplicativo — do planejamento ao balanço.
               </p>
+              {mostrarDicaPrimeiroPasso ? (
+                <p className="mt-3 rounded-xl border border-amber-200/90 bg-amber-50/95 px-3 py-2 text-sm font-medium text-amber-950">
+                  Comece pelo primeiro passo: a aba{" "}
+                  <strong>Adicionar Itens</strong> no menu inferior está a
+                  piscar a amarelo — é por aí que adiciona produtos à lista.
+                </p>
+              ) : null}
             </div>
 
             <ol className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4">

@@ -40,6 +40,7 @@ import { calcularLembretesCadencia } from "./utils/lembretesCadencia";
 import { BarraModoOffline } from "./components/BarraModoOffline";
 import { FaixaDadosLocais } from "./components/FaixaDadosLocais";
 import { ModalGerirListas } from "./components/ModalGerirListas";
+import { ModalParabensPrimeiraLista } from "./components/ModalParabensPrimeiraLista";
 import {
   SeletorListaViagem,
   SeletorListaViagemIcone,
@@ -54,6 +55,9 @@ import { hashSalaSync } from "./utils/salaSync";
 import { publicarEstadoSomenteLeitura } from "./services/shareReadonlyFirestore";
 
 const AbaBalancoPainel = lazy(() => import("./components/AbaBalanco"));
+
+/** Evita repetir o tutorial automático em cada visita com lista vazia. */
+const STORAGE_TUTORIAL_INICIAL = "listaCompra-tutorial-inicial-v1";
 
 function avisoParaDuplicado(
   r: ResultadoMutacaoLista,
@@ -74,6 +78,13 @@ export function AppListaCompras() {
   const [itemEditandoId, setItemEditandoId] = useState<string | null>(null);
   const [modalConfigAberto, setModalConfigAberto] = useState(false);
   const [modalGerirListasAberto, setModalGerirListasAberto] = useState(false);
+  /** Abriu o modal pelo botão em realce laranja: placeholder animado no primeiro nome. */
+  const [modalNomeListaComDicaAnimacao, setModalNomeListaComDicaAnimacao] =
+    useState(false);
+  const [modalParabensPrimeiraListaAberto, setModalParabensPrimeiraListaAberto] =
+    useState(false);
+  /** Após adicionar o primeiro item pelo modal de categoria: realça o botão «Nome da Lista». */
+  const [realceBotaoNomeLista, setRealceBotaoNomeLista] = useState(false);
   const [modalTutorialAberto, setModalTutorialAberto] = useState(false);
   const [avisoDuplicado, setAvisoDuplicado] = useState<TipoDuplicado | null>(
     null,
@@ -220,6 +231,53 @@ export function AppListaCompras() {
     if (itemEditandoId && !itemEmEdicao) setItemEditandoId(null);
   }, [itemEditandoId, itemEmEdicao]);
 
+  useEffect(() => {
+    if (hidratar) return;
+    if (itens.length > 0) return;
+    try {
+      if (localStorage.getItem(STORAGE_TUTORIAL_INICIAL) === "1") return;
+    } catch {
+      return;
+    }
+    try {
+      localStorage.setItem(STORAGE_TUTORIAL_INICIAL, "1");
+    } catch {
+      /* ignore */
+    }
+    setAbaAtiva("adicionar");
+    setModalTutorialAberto(true);
+  }, [hidratar, itens.length]);
+
+  const listaVazia = !hidratar && itens.length === 0;
+  const temListaComNome = useMemo(
+    () => viagensResumo.some((v) => v.nome.trim() !== ""),
+    [viagensResumo],
+  );
+  /** Realces laranja (aba, input, modais) só até existir ≥1 item e ≥1 lista com nome. */
+  const tutoriaisLaranjaPermitidos = !(
+    itens.length >= 1 && temListaComNome
+  );
+
+  const [digitandoNomeNovoItem, setDigitandoNomeNovoItem] =
+    useState(false);
+
+  useEffect(() => {
+    if (tutoriaisLaranjaPermitidos) return;
+    setRealceBotaoNomeLista(false);
+    setModalNomeListaComDicaAnimacao(false);
+  }, [tutoriaisLaranjaPermitidos]);
+
+  const aoTextoNovoItem = useCallback((temTexto: boolean) => {
+    setDigitandoNomeNovoItem(temTexto);
+  }, []);
+
+  useEffect(() => {
+    if (abaAtiva !== "adicionar") setDigitandoNomeNovoItem(false);
+  }, [abaAtiva]);
+
+  const tutorialDicaPrimeiroPasso =
+    modalTutorialAberto && itens.length === 0;
+
   return (
     <div className="relative min-h-dvh">
       {!online ? <BarraModoOffline /> : null}
@@ -253,7 +311,7 @@ export function AppListaCompras() {
         <FaixaDadosLocais visivel={online} disabled={hidratar} />
       </div>
 
-      <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex items-start gap-2 sm:right-4">
+      <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex items-start gap-2 overflow-visible sm:right-4">
         <SeletorListaViagemIcone
           viagens={viagensResumo}
           viagemAtivaId={viagemAtivaId}
@@ -266,29 +324,86 @@ export function AppListaCompras() {
             setModalOrdemCorredoresAberto(true)
           }
         />
-        <button
-          type="button"
-          disabled={hidratar}
-          onClick={() => setModalGerirListasAberto(true)}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/85 text-slate-700 shadow-md backdrop-blur-md transition hover:bg-white hover:shadow active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="Gerir listas por viagem"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            className="h-6 w-6"
-            aria-hidden
+        <div className="relative flex shrink-0 flex-col items-center overflow-visible">
+          <motion.button
+            type="button"
+            disabled={hidratar}
+            onClick={() => {
+              const comDica =
+                realceBotaoNomeLista && tutoriaisLaranjaPermitidos;
+              setRealceBotaoNomeLista(false);
+              setModalNomeListaComDicaAnimacao(comDica);
+              setModalGerirListasAberto(true);
+            }}
+            whileTap={{ scale: hidratar ? 1 : 0.96 }}
+            animate={
+              realceBotaoNomeLista && tutoriaisLaranjaPermitidos
+                ? {
+                    scale: [1, 1.1, 1],
+                    opacity: [1, 0.78, 1],
+                    boxShadow: [
+                      "0 0 0 0 rgba(234, 88, 12, 0.95), 0 0 18px rgba(251, 146, 60, 0.55)",
+                      "0 0 0 22px rgba(249, 115, 22, 0.4), 0 0 32px rgba(251, 146, 60, 0.65)",
+                      "0 0 0 0 rgba(234, 88, 12, 0.95), 0 0 18px rgba(251, 146, 60, 0.55)",
+                    ],
+                  }
+                : undefined
+            }
+            transition={
+              realceBotaoNomeLista && tutoriaisLaranjaPermitidos
+                ? {
+                    duration: 0.85,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }
+                : undefined
+            }
+            className={[
+              "relative z-[32] flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-md backdrop-blur-md transition hover:shadow disabled:cursor-not-allowed disabled:opacity-40",
+              realceBotaoNomeLista && tutoriaisLaranjaPermitidos
+                ? "border-orange-500 bg-gradient-to-br from-amber-100 via-orange-50 to-orange-200 text-orange-950 shadow-lg shadow-orange-400/45 ring-2 ring-orange-400/60 hover:from-amber-100 hover:to-orange-100"
+                : "border-white/70 bg-white/85 text-slate-700 hover:bg-white",
+            ].join(" ")}
+            aria-label="Nome da Lista — gerir listas"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
-            />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="h-6 w-6"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"
+              />
+            </svg>
+          </motion.button>
+          {realceBotaoNomeLista && tutoriaisLaranjaPermitidos ? (
+            <motion.div
+              role="status"
+              aria-live="polite"
+              initial={{ opacity: 0.96, y: 2 }}
+              animate={{ opacity: [1, 0.92, 1], y: [0, 2, 0] }}
+              transition={{
+                duration: 1.35,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="pointer-events-none absolute left-1/2 top-full z-[31] mt-2 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
+            >
+              <span className="absolute -top-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-l border-t border-orange-300/95 bg-white" />
+              <span className="absolute -top-3 left-[46%] h-1.5 w-1.5 rounded-full bg-white/95 ring-1 ring-orange-200" />
+              <span className="absolute -top-5 left-[42%] h-1 w-1 rounded-full bg-white/95 ring-1 ring-orange-200" />
+              Clique aqui para dar um nome
+              <br />
+              a sua Lista
+            </motion.div>
+          ) : null}
+        </div>
         <button
           type="button"
           disabled={hidratar}
@@ -351,6 +466,11 @@ export function AppListaCompras() {
           onMudarAba={setAbaAtiva}
           onIrListaMercado={irParaListaMercado}
           disabled={hidratar}
+          realcarAbaAdicionar={
+            listaVazia &&
+            !digitandoNomeNovoItem &&
+            tutoriaisLaranjaPermitidos
+          }
         />
 
         {hidratar ? (
@@ -432,6 +552,8 @@ export function AppListaCompras() {
                     <InputAddItem
                       historicoCompras={historicoComprasFinalizadas}
                       itensAtuais={itens}
+                      tutorialLaranjaAtivo={tutoriaisLaranjaPermitidos}
+                      onTextoNovoItemChange={aoTextoNovoItem}
                       onPedirCategoria={(nome) => {
                         if (nomeItemJaExiste(itens, nome)) {
                           setAvisoDuplicado("item");
@@ -513,6 +635,7 @@ export function AppListaCompras() {
           nomeItemParaCategoria !== null ||
           (itemEditandoId !== null && itemEmEdicao !== undefined)
         }
+        tutorialLaranjaAtivo={tutoriaisLaranjaPermitidos}
         modoEdicao={itemEmEdicao !== undefined}
         valorInicialEdicao={
           itemEmEdicao
@@ -550,6 +673,7 @@ export function AppListaCompras() {
             );
             const aviso = avisoParaDuplicado(r);
             if (aviso) setAvisoDuplicado(aviso);
+            if (r.ok && !temListaComNome) setRealceBotaoNomeLista(true);
             return r.ok;
           }
           return true;
@@ -571,21 +695,37 @@ export function AppListaCompras() {
       <ModalTutorial
         aberto={modalTutorialAberto}
         onFechar={() => setModalTutorialAberto(false)}
+        mostrarDicaPrimeiroPasso={tutorialDicaPrimeiroPasso}
       />
       <ModalGerirListas
         aberto={modalGerirListasAberto}
-        onFechar={() => setModalGerirListasAberto(false)}
+        onFechar={() => {
+          setModalGerirListasAberto(false);
+          setModalNomeListaComDicaAnimacao(false);
+        }}
         viagens={viagensResumo}
         viagemAtivaId={viagemAtivaId}
         onCriar={criarViagem}
         onRenomear={renomearViagem}
         onRemover={removerViagem}
         disabled={hidratar}
+        dicaAnimacaoPlaceholder={
+          modalNomeListaComDicaAnimacao && tutoriaisLaranjaPermitidos
+        }
+        tutorialLaranjaAtivo={tutoriaisLaranjaPermitidos}
+        onPrimeiroNomeGuardado={() =>
+          setModalParabensPrimeiraListaAberto(true)
+        }
         mostrarOrdemCorredores={categorias.length > 0}
         onAbrirOrdemCorredores={() => {
           setModalGerirListasAberto(false);
+          setModalNomeListaComDicaAnimacao(false);
           setModalOrdemCorredoresAberto(true);
         }}
+      />
+      <ModalParabensPrimeiraLista
+        aberto={modalParabensPrimeiraListaAberto}
+        onFechar={() => setModalParabensPrimeiraListaAberto(false)}
       />
       <ModalConfiguracoes
         aberto={modalConfigAberto}

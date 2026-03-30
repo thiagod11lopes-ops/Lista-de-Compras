@@ -1,6 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
 
+function rotuloLista(nome: string): string {
+  const t = nome.trim();
+  return t ? t : "Nome pendente";
+}
+
 type ViagemResumo = { id: string; nome: string };
 
 type Props = {
@@ -44,11 +49,15 @@ export function SeletorListaViagem({
           onChange={(e) => onSelecionar(e.target.value)}
           className="min-h-[44px] w-full min-w-0 flex-1 truncate rounded-xl border-2 border-blue-100 bg-white/90 px-3 text-sm font-semibold text-blue-950 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 disabled:opacity-50"
         >
-          {viagens.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.nome}
-            </option>
-          ))}
+          {viagens.length === 0 ? (
+            <option value="">Nenhuma lista</option>
+          ) : (
+            viagens.map((v) => (
+              <option key={v.id} value={v.id}>
+                {rotuloLista(v.nome)}
+              </option>
+            ))
+          )}
         </select>
       </div>
       {exibirOrdemCorredores ? (
@@ -98,8 +107,13 @@ export function SeletorListaViagemIcone({
     return () => window.removeEventListener("keydown", onEsc);
   }, [aberto]);
 
+  const viagemAtiva = viagens.find((v) => v.id === viagemAtivaId);
   const nomeAtivo =
-    viagens.find((v) => v.id === viagemAtivaId)?.nome ?? "Lista";
+    viagemAtiva != null
+      ? rotuloLista(viagemAtiva.nome)
+      : viagens.length === 0
+        ? "Nenhuma lista"
+        : "Nome pendente";
 
   return (
     <div ref={wrapRef} className="relative md:hidden">
@@ -165,11 +179,15 @@ export function SeletorListaViagemIcone({
               }}
               className="min-h-[44px] w-full rounded-xl border-2 border-blue-100 bg-white/90 px-3 text-sm font-semibold text-blue-950 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 disabled:opacity-50"
             >
-              {viagens.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nome}
-                </option>
-              ))}
+              {viagens.length === 0 ? (
+                <option value="">Nenhuma lista</option>
+              ) : (
+                viagens.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {rotuloLista(v.nome)}
+                  </option>
+                ))
+              )}
             </select>
             {mostrarBotaoCorredores && onAbrirOrdemCorredores ? (
               <button

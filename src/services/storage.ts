@@ -163,8 +163,12 @@ function isEstadoV3(value: unknown): value is EstadoLista {
   if (typeof value !== "object" || value === null) return false;
   const o = value as Record<string, unknown>;
   if (typeof o.viagemAtivaId !== "string") return false;
-  if (!Array.isArray(o.viagens) || o.viagens.length === 0) return false;
-  if (!o.viagens.every(isViagemLista)) return false;
+  if (!Array.isArray(o.viagens) || !o.viagens.every(isViagemLista)) {
+    return false;
+  }
+  if (o.viagens.length === 0) {
+    return o.viagemAtivaId === "";
+  }
   return o.viagens.some((v) => v.id === o.viagemAtivaId);
 }
 
@@ -175,7 +179,7 @@ function migrarFlatParaV3(legado: EstadoLegadoFlat): EstadoLista {
     viagens: [
       {
         id,
-        nome: "Minha lista",
+        nome: "Lista",
         criadoEm: Date.now(),
         categorias: legado.categorias,
         itens: legado.itens,
@@ -193,7 +197,7 @@ export function criarEstadoVazio(): EstadoLista {
     viagens: [
       {
         id,
-        nome: "Minha lista",
+        nome: "",
         criadoEm: Date.now(),
         categorias: [],
         itens: [],
@@ -206,11 +210,10 @@ export function criarEstadoVazio(): EstadoLista {
 
 /** Garante estrutura mínima após JSON antigo ou dados corrompidos. */
 export function garantirEstadoValido(raw: EstadoLista): EstadoLista {
-  if (
-    !raw?.viagens ||
-    !Array.isArray(raw.viagens) ||
-    raw.viagens.length === 0
-  ) {
+  if (!raw?.viagens || !Array.isArray(raw.viagens)) {
+    return criarEstadoVazio();
+  }
+  if (raw.viagens.length === 0) {
     return criarEstadoVazio();
   }
   const ativa = raw.viagemAtivaId;

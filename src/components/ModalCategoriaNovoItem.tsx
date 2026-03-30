@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Categoria, UnidadeLista } from "../types/item";
+
+const TEXTO_PLACEHOLDER_NOVA_CATEGORIA =
+  "Adicione um nome a categoria para esse item";
 
 export type EscolhaCategoria = {
   categoriaIdExistente: string | null;
@@ -18,6 +21,8 @@ type Props = {
   /** Devolva `false` para manter o modal aberto (ex.: nome ou categoria duplicados). */
   onConfirmar: (escolha: EscolhaCategoria) => boolean | void;
   modoEdicao?: boolean;
+  /** Guias visuais laranja (tipo de medida, nova categoria, botão) — desligar quando já há itens e lista nomeada. */
+  tutorialLaranjaAtivo?: boolean;
   valorInicialEdicao?: {
     nome: string;
     categoriaId: string | null;
@@ -32,6 +37,7 @@ export function ModalCategoriaNovoItem({
   onFechar,
   onConfirmar,
   modoEdicao = false,
+  tutorialLaranjaAtivo = true,
   valorInicialEdicao,
 }: Props) {
   const tituloId = useId();
@@ -39,6 +45,14 @@ export function ModalCategoriaNovoItem({
   const [novaCategoria, setNovaCategoria] = useState("");
   const [unidadeLista, setUnidadeLista] = useState<UnidadeLista>("un");
   const [nomeEditavel, setNomeEditavel] = useState("");
+  /** Só após clicar em UN ou Kg (fluxo novo item). */
+  const [usuarioEscolheuTipoMedida, setUsuarioEscolheuTipoMedida] =
+    useState(false);
+  const [placeholderDigitadoNovaCat, setPlaceholderDigitadoNovaCat] =
+    useState("");
+  const [animacaoPlaceholderNovaCatAtiva, setAnimacaoPlaceholderNovaCatAtiva] =
+    useState(true);
+  const timeoutPlaceholderNovaCatRef = useRef<number | null>(null);
 
   const vi = valorInicialEdicao;
   useEffect(() => {
@@ -48,13 +62,72 @@ export function ModalCategoriaNovoItem({
       setCategoriaId(vi.categoriaId ?? "");
       setNovaCategoria("");
       setUnidadeLista(vi.unidadeLista);
+      setUsuarioEscolheuTipoMedida(true);
     } else if (!modoEdicao) {
       setNomeEditavel("");
       setCategoriaId("");
       setNovaCategoria("");
       setUnidadeLista("un");
+      setUsuarioEscolheuTipoMedida(false);
+      setPlaceholderDigitadoNovaCat("");
+      setAnimacaoPlaceholderNovaCatAtiva(true);
     }
   }, [aberto, modoEdicao, vi?.nome, vi?.categoriaId, vi?.unidadeLista]);
+
+  useEffect(() => {
+    if (usuarioEscolheuTipoMedida && !modoEdicao) {
+      setPlaceholderDigitadoNovaCat("");
+      setAnimacaoPlaceholderNovaCatAtiva(true);
+    }
+  }, [usuarioEscolheuTipoMedida, modoEdicao]);
+
+  const destacarTipoQuantidade =
+    tutorialLaranjaAtivo && !modoEdicao && !usuarioEscolheuTipoMedida;
+  const destacarNovaCategoria =
+    tutorialLaranjaAtivo &&
+    !modoEdicao &&
+    usuarioEscolheuTipoMedida &&
+    !novaCategoria.trim() &&
+    !categoriaId;
+
+  useEffect(() => {
+    if (destacarNovaCategoria) setAnimacaoPlaceholderNovaCatAtiva(true);
+  }, [destacarNovaCategoria]);
+
+  useEffect(() => {
+    if (!destacarNovaCategoria || !animacaoPlaceholderNovaCatAtiva) {
+      if (timeoutPlaceholderNovaCatRef.current != null) {
+        window.clearTimeout(timeoutPlaceholderNovaCatRef.current);
+        timeoutPlaceholderNovaCatRef.current = null;
+      }
+      return;
+    }
+    let i = 0;
+    const limpar = () => {
+      if (timeoutPlaceholderNovaCatRef.current != null) {
+        window.clearTimeout(timeoutPlaceholderNovaCatRef.current);
+        timeoutPlaceholderNovaCatRef.current = null;
+      }
+    };
+    const tick = () => {
+      if (!animacaoPlaceholderNovaCatAtiva || !destacarNovaCategoria) return;
+      if (i <= TEXTO_PLACEHOLDER_NOVA_CATEGORIA.length) {
+        setPlaceholderDigitadoNovaCat(
+          TEXTO_PLACEHOLDER_NOVA_CATEGORIA.slice(0, i),
+        );
+        i += 1;
+        timeoutPlaceholderNovaCatRef.current = window.setTimeout(tick, 75);
+        return;
+      }
+      timeoutPlaceholderNovaCatRef.current = window.setTimeout(() => {
+        setPlaceholderDigitadoNovaCat("");
+        i = 0;
+        tick();
+      }, 1200);
+    };
+    tick();
+    return limpar;
+  }, [destacarNovaCategoria, animacaoPlaceholderNovaCatAtiva]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -77,6 +150,10 @@ export function ModalCategoriaNovoItem({
   const categoriasOrdenadas = [...categorias].sort(
     (a, b) => a.criadoEm - b.criadoEm,
   );
+
+  const digitandoNovaCategoria = novaCategoria.trim().length > 0;
+  const botaoConfirmarEmRealceLaranja =
+    tutorialLaranjaAtivo && digitandoNovaCategoria;
 
   function confirmar() {
     const nova = novaCategoria.trim();
@@ -170,7 +247,31 @@ export function ModalCategoriaNovoItem({
             </div>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-              <fieldset className="space-y-2">
+              <fieldset
+                className={[
+                  "relative space-y-2",
+                  destacarTipoQuantidade ? "pt-14" : "pt-1",
+                ].join(" ")}
+              >
+                {destacarTipoQuantidade ? (
+                  <motion.div
+                    role="status"
+                    aria-live="polite"
+                    initial={{ opacity: 0.96, y: -1 }}
+                    animate={{ opacity: [1, 0.9, 1], y: [0, -2, 0] }}
+                    transition={{
+                      duration: 1.35,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    className="pointer-events-none absolute left-1/2 top-0 z-20 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
+                  >
+                    Escolha o tipo de medida
+                    <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-orange-300/95 bg-white" />
+                    <span className="absolute -bottom-3 left-[46%] h-1.5 w-1.5 rounded-full bg-white/95 ring-1 ring-orange-200" />
+                    <span className="absolute -bottom-5 left-[42%] h-1 w-1 rounded-full bg-white/95 ring-1 ring-orange-200" />
+                  </motion.div>
+                ) : null}
                 <legend className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Tipo de quantidade
                 </legend>
@@ -179,40 +280,112 @@ export function ModalCategoriaNovoItem({
                   role="radiogroup"
                   aria-label="Tipo de quantidade na lista do mercado"
                 >
-                  <button
+                  <motion.button
                     type="button"
                     role="radio"
                     aria-checked={unidadeLista === "un"}
-                    onClick={() => setUnidadeLista("un")}
+                    onClick={() => {
+                      setUnidadeLista("un");
+                      setUsuarioEscolheuTipoMedida(true);
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                    animate={
+                      destacarTipoQuantidade
+                        ? {
+                            scale: [1, 1.04, 1],
+                            opacity: [1, 0.86, 1],
+                            boxShadow: [
+                              "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                              "0 0 0 12px rgba(251, 146, 60, 0)",
+                              "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                            ],
+                          }
+                        : undefined
+                    }
+                    transition={
+                      destacarTipoQuantidade
+                        ? {
+                            duration: 1.2,
+                            repeat: Infinity,
+                            ease: "easeInOut",
+                          }
+                        : undefined
+                    }
                     className={[
                       "flex flex-col gap-1 rounded-2xl border-2 px-3 py-3 text-left transition",
-                      unidadeLista === "un"
-                        ? "border-blue-500 bg-blue-50/90 shadow-sm ring-1 ring-blue-200"
-                        : "border-slate-200 bg-white hover:border-slate-300",
+                      destacarTipoQuantidade
+                        ? "border-orange-400 bg-gradient-to-br from-amber-50 to-orange-50/90 text-slate-800"
+                        : unidadeLista === "un"
+                          ? "border-blue-500 bg-blue-50/90 shadow-sm ring-1 ring-blue-200"
+                          : "border-slate-200 bg-white hover:border-slate-300",
                     ].join(" ")}
                   >
-                    <span className="text-sm font-bold text-blue-950">UN</span>
+                    <span
+                      className={
+                        destacarTipoQuantidade
+                          ? "text-sm font-bold text-orange-950"
+                          : "text-sm font-bold text-blue-950"
+                      }
+                    >
+                      UN
+                    </span>
                     <span className="text-[11px] leading-snug text-slate-600">
                       Unidade — quantidade em números inteiros (ex.: 2 caixas).
                     </span>
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     type="button"
                     role="radio"
                     aria-checked={unidadeLista === "kg"}
-                    onClick={() => setUnidadeLista("kg")}
+                    onClick={() => {
+                      setUnidadeLista("kg");
+                      setUsuarioEscolheuTipoMedida(true);
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                    animate={
+                      destacarTipoQuantidade
+                        ? {
+                            scale: [1, 1.04, 1],
+                            opacity: [1, 0.86, 1],
+                            boxShadow: [
+                              "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                              "0 0 0 12px rgba(251, 146, 60, 0)",
+                              "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                            ],
+                          }
+                        : undefined
+                    }
+                    transition={
+                      destacarTipoQuantidade
+                        ? {
+                            duration: 1.2,
+                            repeat: Infinity,
+                            ease: "easeInOut",
+                          }
+                        : undefined
+                    }
                     className={[
                       "flex flex-col gap-1 rounded-2xl border-2 px-3 py-3 text-left transition",
-                      unidadeLista === "kg"
-                        ? "border-amber-500 bg-amber-50/90 shadow-sm ring-1 ring-amber-200"
-                        : "border-slate-200 bg-white hover:border-slate-300",
+                      destacarTipoQuantidade
+                        ? "border-orange-400 bg-gradient-to-br from-amber-50 to-orange-50/90 text-slate-800"
+                        : unidadeLista === "kg"
+                          ? "border-amber-500 bg-amber-50/90 shadow-sm ring-1 ring-amber-200"
+                          : "border-slate-200 bg-white hover:border-slate-300",
                     ].join(" ")}
                   >
-                    <span className="text-sm font-bold text-amber-950">Kg</span>
+                    <span
+                      className={
+                        destacarTipoQuantidade
+                          ? "text-sm font-bold text-orange-950"
+                          : "text-sm font-bold text-amber-950"
+                      }
+                    >
+                      Kg
+                    </span>
                     <span className="text-[11px] leading-snug text-slate-600">
                       Quilos — peso estimado (ex.: 1,5 kg de tomate).
                     </span>
-                  </button>
+                  </motion.button>
                 </div>
               </fieldset>
 
@@ -248,17 +421,61 @@ export function ModalCategoriaNovoItem({
                 >
                   Ou nova categoria
                 </label>
-                <input
-                  id="nova-categoria-item"
-                  type="text"
-                  value={novaCategoria}
-                  placeholder="Ex.: Frutas e verduras"
-                  onChange={(e) => {
-                    setNovaCategoria(e.target.value);
-                    if (e.target.value.trim()) setCategoriaId("");
-                  }}
-                  className="min-h-[48px] w-full rounded-xl border-2 border-blue-100 bg-white px-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
-                />
+                <motion.div
+                  className="rounded-xl"
+                  animate={
+                    destacarNovaCategoria
+                      ? {
+                          boxShadow: [
+                            "0 0 0 0 rgba(251, 146, 60, 0.55)",
+                            "0 0 0 10px rgba(251, 146, 60, 0)",
+                            "0 0 0 0 rgba(251, 146, 60, 0.55)",
+                          ],
+                        }
+                      : undefined
+                  }
+                  transition={
+                    destacarNovaCategoria
+                      ? {
+                          duration: 1.2,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        }
+                      : undefined
+                  }
+                >
+                  <input
+                    id="nova-categoria-item"
+                    type="text"
+                    value={novaCategoria}
+                    placeholder={
+                      destacarNovaCategoria && animacaoPlaceholderNovaCatAtiva
+                        ? placeholderDigitadoNovaCat
+                        : "Ex.: Frutas e verduras"
+                    }
+                    onChange={(e) => {
+                      setNovaCategoria(e.target.value);
+                      if (e.target.value.trim()) setCategoriaId("");
+                    }}
+                    onFocus={() => setAnimacaoPlaceholderNovaCatAtiva(false)}
+                    onBlur={() => {
+                      if (
+                        !modoEdicao &&
+                        usuarioEscolheuTipoMedida &&
+                        !novaCategoria.trim() &&
+                        !categoriaId
+                      ) {
+                        setAnimacaoPlaceholderNovaCatAtiva(true);
+                      }
+                    }}
+                    className={[
+                      "min-h-[48px] w-full rounded-xl border-2 bg-white px-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400",
+                      destacarNovaCategoria
+                        ? "border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+                        : "border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200",
+                    ].join(" ")}
+                  />
+                </motion.div>
                 {novaCategoria.trim() ? (
                   <p className="text-xs text-slate-500">
                     O nome acima será usado como nova categoria (prioridade sobre
@@ -276,13 +493,41 @@ export function ModalCategoriaNovoItem({
               >
                 Cancelar
               </button>
-              <button
+              <motion.button
                 type="button"
                 onClick={confirmar}
-                className="min-h-[48px] flex-1 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-base font-semibold text-white shadow-md shadow-blue-500/25 transition active:scale-[0.98]"
+                whileTap={{ scale: 0.98 }}
+                animate={
+                  botaoConfirmarEmRealceLaranja
+                    ? {
+                        scale: [1, 1.04, 1],
+                        opacity: [1, 0.86, 1],
+                        boxShadow: [
+                          "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                          "0 0 0 12px rgba(251, 146, 60, 0)",
+                          "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                        ],
+                      }
+                    : undefined
+                }
+                transition={
+                  botaoConfirmarEmRealceLaranja
+                    ? {
+                        duration: 1.2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }
+                    : undefined
+                }
+                className={[
+                  "min-h-[48px] flex-1 rounded-2xl py-3 text-base font-semibold text-white shadow-md transition",
+                  botaoConfirmarEmRealceLaranja
+                    ? "bg-gradient-to-r from-orange-600 to-orange-500 shadow-orange-500/30 hover:from-orange-700 hover:to-orange-600"
+                    : "bg-gradient-to-r from-blue-600 to-blue-500 shadow-blue-500/25 hover:from-blue-700 hover:to-blue-600",
+                ].join(" ")}
               >
                 {modoEdicao ? "Salvar" : "Adicionar"}
-              </button>
+              </motion.button>
             </div>
           </motion.div>
         </motion.div>

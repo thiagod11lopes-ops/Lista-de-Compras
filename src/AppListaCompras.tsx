@@ -438,8 +438,8 @@ export function AppListaCompras() {
         className={[
           "relative mx-auto flex max-w-lg flex-col gap-5 overflow-x-hidden px-4 pb-28",
           online
-            ? "pt-[max(1.25rem,env(safe-area-inset-top))]"
-            : "pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem)]",
+            ? "max-md:pt-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] md:pt-[max(1.25rem,env(safe-area-inset-top))]"
+            : "max-md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem+1.75rem)] md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem)]",
         ].join(" ")}
       >
         <motion.div

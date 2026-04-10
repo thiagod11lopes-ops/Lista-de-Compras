@@ -1,5 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
+
+const STORAGE_JA_ESCOLHEU_TIPO =
+  "listaCompra-tipo-lista-ja-escolheu-v1";
+
+const FRASE_SESSAO =
+  "Escolha como deseja usar a lista nesta sessão.";
 
 type Props = {
   aberto: boolean;
@@ -8,6 +14,22 @@ type Props = {
   onFechar: () => void;
 };
 
+function lerJaEscolheuTipo(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_JA_ESCOLHEU_TIPO) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function marcarTipoEscolhido() {
+  try {
+    localStorage.setItem(STORAGE_JA_ESCOLHEU_TIPO, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
 export function ModalTipoListaMercado({
   aberto,
   onEscolherSimples,
@@ -15,6 +37,23 @@ export function ModalTipoListaMercado({
   onFechar,
 }: Props) {
   const tituloId = useId();
+  const [charsFrase, setCharsFrase] = useState(0);
+  const mostrarPrimeiraVez = aberto && !lerJaEscolheuTipo();
+
+  useEffect(() => {
+    if (!mostrarPrimeiraVez) {
+      setCharsFrase(0);
+      return;
+    }
+    setCharsFrase(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setCharsFrase(i);
+      if (i >= FRASE_SESSAO.length) clearInterval(id);
+    }, 34);
+    return () => clearInterval(id);
+  }, [mostrarPrimeiraVez]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -33,6 +72,16 @@ export function ModalTipoListaMercado({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [aberto, onFechar]);
+
+  const aoSimples = () => {
+    marcarTipoEscolhido();
+    onEscolherSimples();
+  };
+
+  const aoCompleta = () => {
+    marcarTipoEscolhido();
+    onEscolherCompleta();
+  };
 
   return (
     <AnimatePresence>
@@ -69,9 +118,32 @@ export function ModalTipoListaMercado({
                   >
                     Tipo de lista do mercado
                   </h2>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    Escolha como deseja usar a lista nesta sessão.
-                  </p>
+                  {mostrarPrimeiraVez ? (
+                    <p
+                      className="mt-2 min-h-[3.25rem] text-sm font-semibold leading-relaxed"
+                      aria-live="polite"
+                    >
+                      <span
+                        className="bg-gradient-to-r from-orange-500 via-amber-300 to-orange-400 bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(249,115,22,0.65)]"
+                        style={{
+                          WebkitBackgroundClip: "text",
+                          backgroundClip: "text",
+                        }}
+                      >
+                        {FRASE_SESSAO.slice(0, charsFrase)}
+                      </span>
+                      {charsFrase < FRASE_SESSAO.length ? (
+                        <span
+                          className="ml-0.5 inline-block h-[1em] w-0.5 translate-y-0.5 animate-pulse rounded-sm bg-orange-500 align-middle shadow-[0_0_8px_#f97316]"
+                          aria-hidden
+                        />
+                      ) : null}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                      {FRASE_SESSAO}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -100,8 +172,13 @@ export function ModalTipoListaMercado({
             <div className="flex flex-col gap-3 px-5 py-4">
               <button
                 type="button"
-                onClick={onEscolherSimples}
-                className="flex w-full flex-col items-start gap-1 rounded-2xl border-2 border-slate-200 bg-slate-50/90 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50/80 active:scale-[0.99]"
+                onClick={aoSimples}
+                className={[
+                  "flex w-full flex-col items-start gap-1 rounded-2xl border-2 bg-slate-50/90 px-4 py-3 text-left transition active:scale-[0.99]",
+                  mostrarPrimeiraVez
+                    ? "animate-tipo-lista-borda-a border-slate-200"
+                    : "border-slate-200 hover:border-blue-300 hover:bg-blue-50/80",
+                ].join(" ")}
               >
                 <span className="text-base font-bold text-blue-950">
                   Lista simples
@@ -114,8 +191,13 @@ export function ModalTipoListaMercado({
               </button>
               <button
                 type="button"
-                onClick={onEscolherCompleta}
-                className="flex w-full flex-col items-start gap-1 rounded-2xl border-2 border-blue-200/90 bg-gradient-to-br from-blue-50 to-white px-4 py-3 text-left transition hover:border-blue-400 active:scale-[0.99]"
+                onClick={aoCompleta}
+                className={[
+                  "flex w-full flex-col items-start gap-1 rounded-2xl border-2 px-4 py-3 text-left transition active:scale-[0.99]",
+                  mostrarPrimeiraVez
+                    ? "animate-tipo-lista-borda-b border-slate-200 bg-gradient-to-br from-blue-50 to-white"
+                    : "border-blue-200/90 bg-gradient-to-br from-blue-50 to-white hover:border-blue-400",
+                ].join(" ")}
               >
                 <span className="text-base font-bold text-blue-950">
                   Lista completa

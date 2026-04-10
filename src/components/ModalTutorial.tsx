@@ -28,9 +28,9 @@ const PASSOS: { titulo: string; texto: string }[] = [
       "Na aba Balanço você acompanha o histórico das compras finalizadas, totais e gráficos por período. Pode criar várias listas por viagem (ex.: loja, feira): no topo escolha a lista ativa ou use o ícone de listas ao lado de Configurações para gerir listas. No balanço, filtre por uma lista ou veja todas em conjunto; no histórico, as finalizações aparecem agrupadas pelo nome da lista.",
   },
   {
-    titulo: "Limpar e agrupar",
+    titulo: "Limpar lista",
     texto:
-      "Na aba Adicionar Itens, Limpar lista remove itens selecionados e Agrupar por tipo cria categorias para organizar vários itens de uma vez.",
+      "Na aba Adicionar Itens, Limpar lista remove os itens que você selecionar.",
   },
   {
     titulo: "Dados e privacidade",

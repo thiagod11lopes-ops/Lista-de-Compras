@@ -19,7 +19,6 @@ import {
   type AbaId,
   NavegacaoAbas,
 } from "./components/NavegacaoAbas";
-import { ModalAgruparTipo } from "./components/ModalAgruparTipo";
 import { ModalCategoriaNovoItem } from "./components/ModalCategoriaNovoItem";
 import { ModalConfiguracoes } from "./components/ModalConfiguracoes";
 import { ModalTutorial } from "./components/ModalTutorial";
@@ -71,7 +70,6 @@ function avisoParaDuplicado(
 export function AppListaCompras() {
   const [abaAtiva, setAbaAtiva] = useState<AbaId>("adicionar");
   const [modalExcluirAberto, setModalExcluirAberto] = useState(false);
-  const [modalAgruparAberto, setModalAgruparAberto] = useState(false);
   const [nomeItemParaCategoria, setNomeItemParaCategoria] = useState<
     string | null
   >(null);
@@ -82,6 +80,9 @@ export function AppListaCompras() {
   const [modalNomeListaComDicaAnimacao, setModalNomeListaComDicaAnimacao] =
     useState(false);
   const [modalParabensPrimeiraListaAberto, setModalParabensPrimeiraListaAberto] =
+    useState(false);
+  /** Após fechar o modal de parabéns: realçar Iniciar compras até o utilizador tocar. */
+  const [realceIniciarComprasAposParabens, setRealceIniciarComprasAposParabens] =
     useState(false);
   /** Após adicionar o primeiro item pelo modal de categoria: realça o botão «Nome da Lista». */
   const [realceBotaoNomeLista, setRealceBotaoNomeLista] = useState(false);
@@ -127,7 +128,6 @@ export function AppListaCompras() {
     finalizarCompras,
     definirModoListaMercado,
     definirOrdemCorredoresCategoriaIds,
-    criarCategoriaEAtribuirItens,
     zerarSistema,
     ordemCorredoresCategoriaIds,
     orcamentoReais,
@@ -172,6 +172,7 @@ export function AppListaCompras() {
   }, [firebaseConfigurado, syncPrefs.ativo]);
 
   const irParaListaMercado = useCallback(() => {
+    setRealceIniciarComprasAposParabens(false);
     setAbaAtiva("mercado");
     setModoListaMercado(null);
     setModalTipoListaMercadoAberto(true);
@@ -471,6 +472,7 @@ export function AppListaCompras() {
             !digitandoNomeNovoItem &&
             tutoriaisLaranjaPermitidos
           }
+          realcarBotaoIniciarCompras={realceIniciarComprasAposParabens}
         />
 
         {hidratar ? (
@@ -597,14 +599,6 @@ export function AppListaCompras() {
                     >
                       Limpar lista
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setModalAgruparAberto(true)}
-                      disabled={itens.length === 0 || hidratar}
-                      className="min-h-[48px] w-full rounded-xl border border-blue-200/90 bg-blue-50 px-4 text-sm font-semibold text-blue-900 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[10rem]"
-                    >
-                      Agrupar por tipo
-                    </button>
                   </div>
                 </section>
               ) : null}
@@ -618,17 +612,6 @@ export function AppListaCompras() {
         itens={itens}
         onFechar={() => setModalExcluirAberto(false)}
         onExcluirSelecionados={(ids) => removerItensPorIds(ids)}
-      />
-      <ModalAgruparTipo
-        aberto={modalAgruparAberto}
-        itens={itens}
-        onFechar={() => setModalAgruparAberto(false)}
-        onConfirmar={(titulo, ids) => {
-          const r = criarCategoriaEAtribuirItens(titulo, ids);
-          const aviso = avisoParaDuplicado(r);
-          if (aviso) setAvisoDuplicado(aviso);
-          return r.ok;
-        }}
       />
       <ModalCategoriaNovoItem
         aberto={
@@ -725,7 +708,10 @@ export function AppListaCompras() {
       />
       <ModalParabensPrimeiraLista
         aberto={modalParabensPrimeiraListaAberto}
-        onFechar={() => setModalParabensPrimeiraListaAberto(false)}
+        onFechar={() => {
+          setModalParabensPrimeiraListaAberto(false);
+          setRealceIniciarComprasAposParabens(true);
+        }}
       />
       <ModalConfiguracoes
         aberto={modalConfigAberto}

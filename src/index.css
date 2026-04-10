@@ -11,6 +11,36 @@
   --color-app-blue-900: #1e3a8a;
 }
 
+@keyframes tipo-lista-borda-a {
+  0%,
+  49.5% {
+    border-color: rgb(249 115 22);
+    box-shadow:
+      0 0 0 2px rgb(251 146 60 / 0.45),
+      0 4px 14px rgb(249 115 22 / 0.22);
+  }
+  50%,
+  100% {
+    border-color: rgb(226 232 240);
+    box-shadow: none;
+  }
+}
+
+@keyframes tipo-lista-borda-b {
+  0%,
+  49.5% {
+    border-color: rgb(226 232 240);
+    box-shadow: none;
+  }
+  50%,
+  100% {
+    border-color: rgb(249 115 22);
+    box-shadow:
+      0 0 0 2px rgb(251 146 60 / 0.45),
+      0 4px 14px rgb(249 115 22 / 0.22);
+  }
+}
+
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
@@ -44,5 +74,14 @@
     position: relative;
     z-index: 1;
     min-height: 100dvh;
+  }
+}
+
+@layer utilities {
+  .animate-tipo-lista-borda-a {
+    animation: tipo-lista-borda-a 2.2s ease-in-out infinite;
+  }
+  .animate-tipo-lista-borda-b {
+    animation: tipo-lista-borda-b 2.2s ease-in-out infinite;
   }
 }

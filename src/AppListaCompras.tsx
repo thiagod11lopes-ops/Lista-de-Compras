@@ -268,6 +268,9 @@ export function AppListaCompras() {
     setModalNomeListaComDicaAnimacao(false);
   }, [tutoriaisLaranjaPermitidos]);
 
+  const realceNomeListaAtivo =
+    realceBotaoNomeLista && tutoriaisLaranjaPermitidos;
+
   const aoTextoNovoItem = useCallback((temTexto: boolean) => {
     setDigitandoNomeNovoItem(temTexto);
   }, []);
@@ -325,20 +328,19 @@ export function AppListaCompras() {
             setModalOrdemCorredoresAberto(true)
           }
         />
-        <div className="relative flex shrink-0 flex-col items-center overflow-visible">
+        <div className="relative isolate z-40 flex shrink-0 flex-col items-center overflow-visible">
           <motion.button
             type="button"
             disabled={hidratar}
             onClick={() => {
-              const comDica =
-                realceBotaoNomeLista && tutoriaisLaranjaPermitidos;
+              const comDica = realceNomeListaAtivo;
               setRealceBotaoNomeLista(false);
               setModalNomeListaComDicaAnimacao(comDica);
               setModalGerirListasAberto(true);
             }}
             whileTap={{ scale: hidratar ? 1 : 0.96 }}
             animate={
-              realceBotaoNomeLista && tutoriaisLaranjaPermitidos
+              realceNomeListaAtivo
                 ? {
                     scale: [1, 1.1, 1],
                     opacity: [1, 0.78, 1],
@@ -348,20 +350,25 @@ export function AppListaCompras() {
                       "0 0 0 0 rgba(234, 88, 12, 0.95), 0 0 18px rgba(251, 146, 60, 0.55)",
                     ],
                   }
-                : undefined
+                : {
+                    scale: 1,
+                    opacity: 1,
+                    boxShadow:
+                      "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                  }
             }
             transition={
-              realceBotaoNomeLista && tutoriaisLaranjaPermitidos
+              realceNomeListaAtivo
                 ? {
                     duration: 0.85,
                     repeat: Infinity,
                     ease: "easeInOut",
                   }
-                : undefined
+                : { duration: 0.2, ease: "easeOut" }
             }
             className={[
               "relative z-[32] flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-md backdrop-blur-md transition hover:shadow disabled:cursor-not-allowed disabled:opacity-40",
-              realceBotaoNomeLista && tutoriaisLaranjaPermitidos
+              realceNomeListaAtivo
                 ? "border-orange-500 bg-gradient-to-br from-amber-100 via-orange-50 to-orange-200 text-orange-950 shadow-lg shadow-orange-400/45 ring-2 ring-orange-400/60 hover:from-amber-100 hover:to-orange-100"
                 : "border-white/70 bg-white/85 text-slate-700 hover:bg-white",
             ].join(" ")}
@@ -383,7 +390,7 @@ export function AppListaCompras() {
               />
             </svg>
           </motion.button>
-          {realceBotaoNomeLista && tutoriaisLaranjaPermitidos ? (
+          {realceNomeListaAtivo ? (
             <motion.div
               role="status"
               aria-live="polite"
@@ -394,7 +401,7 @@ export function AppListaCompras() {
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-              className="pointer-events-none absolute left-1/2 top-full z-[31] mt-2 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
+              className="pointer-events-none absolute left-1/2 top-full z-[50] mt-2 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
             >
               <span className="absolute -top-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-l border-t border-orange-300/95 bg-white" />
               <span className="absolute -top-3 left-[46%] h-1.5 w-1.5 rounded-full bg-white/95 ring-1 ring-orange-200" />
@@ -437,7 +444,7 @@ export function AppListaCompras() {
 
       <div
         className={[
-          "relative mx-auto flex max-w-lg flex-col gap-5 overflow-x-hidden px-4 pb-28",
+          "relative mx-auto flex max-w-lg touch-pan-y flex-col gap-5 overflow-x-hidden px-4 pb-28",
           online
             ? "max-md:pt-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] md:pt-[max(1.25rem,env(safe-area-inset-top))]"
             : "max-md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem+1.75rem)] md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem)]",

@@ -236,7 +236,7 @@ export function InputAddItem({
           ) : null}
         </div>
         <div className="flex min-h-[52px] shrink-0 gap-2">
-          <div className="relative shrink-0">
+          <div className="relative z-40 isolate shrink-0">
             {temRealceAdicionar ? (
               <motion.div
                 role="status"
@@ -248,7 +248,7 @@ export function InputAddItem({
                   repeat: Infinity,
                   ease: "easeInOut",
                 }}
-                className="pointer-events-none absolute -top-14 left-1/2 z-20 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
+                className="pointer-events-none absolute -top-14 left-[58%] z-[50] w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
               >
                 Clique aqui para adicionar o item a sua lista
                 <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-orange-300/95 bg-white" />
@@ -270,7 +270,12 @@ export function InputAddItem({
                         "0 0 0 0 rgba(251, 146, 60, 0.72)",
                       ],
                     }
-                  : undefined
+                  : {
+                      scale: 1,
+                      opacity: 1,
+                      boxShadow:
+                        "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+                    }
               }
               transition={
                 temRealceAdicionar
@@ -279,7 +284,7 @@ export function InputAddItem({
                       repeat: Infinity,
                       ease: "easeInOut",
                     }
-                  : undefined
+                  : { duration: 0.2, ease: "easeOut" }
               }
               disabled={disabled}
               className={[

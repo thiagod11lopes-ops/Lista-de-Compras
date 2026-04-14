@@ -249,7 +249,7 @@ export function ModalCategoriaNovoItem({
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
               <fieldset
                 className={[
-                  "relative space-y-2",
+                  "relative isolate space-y-2",
                   destacarTipoQuantidade ? "pt-14" : "pt-1",
                 ].join(" ")}
               >
@@ -264,7 +264,7 @@ export function ModalCategoriaNovoItem({
                       repeat: Infinity,
                       ease: "easeInOut",
                     }}
-                    className="pointer-events-none absolute left-1/2 top-0 z-20 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
+                    className="pointer-events-none absolute left-1/2 top-0 z-[50] w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold text-orange-900 shadow-md shadow-orange-200/60"
                   >
                     Escolha o tipo de medida
                     <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-orange-300/95 bg-white" />

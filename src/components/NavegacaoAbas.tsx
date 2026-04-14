@@ -51,7 +51,7 @@ export function NavegacaoAbas({
 
   return (
     <nav
-      className="rounded-2xl border border-white/60 bg-white/60 p-1 shadow-sm backdrop-blur-md"
+      className="relative z-40 isolate rounded-2xl border border-white/60 bg-white/60 p-1 shadow-sm backdrop-blur-md"
       aria-label="Seções da lista"
     >
       <div className="relative grid grid-cols-4 gap-1" role="tablist">
@@ -66,7 +66,7 @@ export function NavegacaoAbas({
               repeat: Infinity,
               ease: "easeInOut",
             }}
-            className="pointer-events-none absolute -top-14 left-[37.5%] z-20 -translate-x-1/2 rounded-2xl border border-amber-300/95 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-900 shadow-md shadow-amber-200/60"
+            className="pointer-events-none absolute -top-14 left-[48%] z-[50] -translate-x-1/2 rounded-2xl border border-amber-300/95 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-900 shadow-md shadow-amber-200/60"
           >
             Adicione Itens a sua lista
             <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-amber-300/95 bg-white" />
@@ -85,7 +85,7 @@ export function NavegacaoAbas({
               repeat: Infinity,
               ease: "easeInOut",
             }}
-            className="pointer-events-none absolute -top-14 left-[22%] z-20 max-w-[min(16rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-amber-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold leading-snug text-amber-900 shadow-md shadow-amber-200/60"
+            className="pointer-events-none absolute -top-14 left-[22%] z-[50] max-w-[min(16rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-amber-300/95 bg-white px-3 py-1.5 text-center text-[11px] font-semibold leading-snug text-amber-900 shadow-md shadow-amber-200/60"
           >
             Clique aqui para iniciar as compras
             <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-amber-300/95 bg-white" />

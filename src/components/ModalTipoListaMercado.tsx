@@ -172,12 +172,30 @@ export function ModalTipoListaMercado({
             <div className="flex flex-col gap-3 px-5 py-4">
               <button
                 type="button"
+                onClick={aoCompleta}
+                className={[
+                  "flex w-full flex-col items-start gap-1 rounded-2xl border-2 px-4 py-3 text-left active:scale-[0.99]",
+                  mostrarPrimeiraVez
+                    ? "animate-tipo-lista-borda-a border-slate-200 bg-gradient-to-br from-blue-50 to-white transition-none"
+                    : "border-blue-200/90 bg-gradient-to-br from-blue-50 to-white transition hover:border-blue-400",
+                ].join(" ")}
+              >
+                <span className="text-base font-bold text-blue-950">
+                  Lista completa
+                </span>
+                <span className="text-sm leading-snug text-slate-600">
+                  Preço, quantidade e total por item. Finalização com resumo em
+                  reais no balanço (gráficos e totais).
+                </span>
+              </button>
+              <button
+                type="button"
                 onClick={aoSimples}
                 className={[
-                  "flex w-full flex-col items-start gap-1 rounded-2xl border-2 bg-slate-50/90 px-4 py-3 text-left transition active:scale-[0.99]",
+                  "flex w-full flex-col items-start gap-1 rounded-2xl border-2 bg-slate-50/90 px-4 py-3 text-left active:scale-[0.99]",
                   mostrarPrimeiraVez
-                    ? "animate-tipo-lista-borda-a border-slate-200"
-                    : "border-slate-200 hover:border-blue-300 hover:bg-blue-50/80",
+                    ? "animate-tipo-lista-borda-b border-slate-200 transition-none"
+                    : "border-slate-200 transition hover:border-blue-300 hover:bg-blue-50/80",
                 ].join(" ")}
               >
                 <span className="text-base font-bold text-blue-950">
@@ -187,24 +205,6 @@ export function ModalTipoListaMercado({
                   Somente o nome do item e o checklist. Sem preço, quantidade nem
                   total. Ao finalizar, o registro vai para uma área separada no
                   balanço (sem valores em reais).
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={aoCompleta}
-                className={[
-                  "flex w-full flex-col items-start gap-1 rounded-2xl border-2 px-4 py-3 text-left transition active:scale-[0.99]",
-                  mostrarPrimeiraVez
-                    ? "animate-tipo-lista-borda-b border-slate-200 bg-gradient-to-br from-blue-50 to-white"
-                    : "border-blue-200/90 bg-gradient-to-br from-blue-50 to-white hover:border-blue-400",
-                ].join(" ")}
-              >
-                <span className="text-base font-bold text-blue-950">
-                  Lista completa
-                </span>
-                <span className="text-sm leading-snug text-slate-600">
-                  Preço, quantidade e total por item. Finalização com resumo em
-                  reais no balanço (gráficos e totais).
                 </span>
               </button>
             </div>

@@ -10,24 +10,85 @@ import {
 import { createPortal } from "react-dom";
 import type { Categoria, ItemCompra } from "../types/item";
 import {
+  linhasTotaisComprados,
+  linhasTotaisCompradosPorCategoria,
   podeMarcarComoComprado,
   precoPreenchido,
   quantidadePreenchida,
+  somaTotaisLinhas,
   subtotalLinhaMercado,
 } from "../utils/itemMercado";
-import { formatarMoedaBRL } from "../utils/moeda";
+import { formatarMoedaBRL, parsearEntradaMoeda } from "../utils/moeda";
 import { blocosPorCategoria } from "../utils/agruparItens";
-import {
-  linhasTotaisComprados,
-  linhasTotaisCompradosPorCategoria,
-  somaTotaisLinhas,
-} from "../utils/itemMercado";
 import { Item } from "./Item";
 import { ModalAvisoPendentesFinalizar } from "./ModalAvisoPendentesFinalizar";
 import { ModalAvisoValidacaoMercado } from "./ModalAvisoValidacaoMercado";
 import { ModalFinalizarCompras } from "./ModalFinalizarCompras";
 
 const FAB_POS_STORAGE_KEY = "listaMercado-fab-pos-v1";
+
+const STORAGE_DICA_ORCAMENTO_LISTA_COMPLETA =
+  "listaCompra-dica-orcamento-lista-completa-v1";
+
+const FRASE_DICA_ORCAMENTO =
+  "Adicione um orçamento para essa compra aqui";
+
+function lerDicaOrcamentoListaCompletaJaVista(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_DICA_ORCAMENTO_LISTA_COMPLETA) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function marcarDicaOrcamentoListaCompletaVista() {
+  try {
+    localStorage.setItem(STORAGE_DICA_ORCAMENTO_LISTA_COMPLETA, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+const STORAGE_DICA_PAINEL_FLUTUANTE =
+  "listaCompra-dica-painel-flutuante-v1";
+
+const FRASE_DICA_PAINEL_FLUTUANTE =
+  "Clique aqui para tornar o campo flutuante";
+
+function lerDicaPainelFlutuanteJaVista(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_DICA_PAINEL_FLUTUANTE) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function marcarDicaPainelFlutuanteVista() {
+  try {
+    localStorage.setItem(STORAGE_DICA_PAINEL_FLUTUANTE, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+const STORAGE_TUTORIAL_FLUTUANTE_ITENS_OK =
+  "listaCompra-tutorial-flutuante-itens-v1";
+
+function lerTutorialFlutuanteItensCompleto(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_TUTORIAL_FLUTUANTE_ITENS_OK) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function marcarTutorialFlutuanteItensCompleto() {
+  try {
+    localStorage.setItem(STORAGE_TUTORIAL_FLUTUANTE_ITENS_OK, "1");
+  } catch {
+    /* ignore */
+  }
+}
 
 type FabPos = { left: number; top: number };
 
@@ -403,6 +464,120 @@ export function ListaMercado({
   const [painelOrcamentoVisivel, setPainelOrcamentoVisivel] = useState(true);
   /** `true`: cartão completo no fluxo; `false`: só o painel flutuante (total + finalizar). */
   const [resumoMercadoExpandido, setResumoMercadoExpandido] = useState(true);
+  const [dicaOrcamentoListaCompletaVista, setDicaOrcamentoListaCompletaVista] =
+    useState(lerDicaOrcamentoListaCompletaJaVista);
+  const [charsFraseOrc, setCharsFraseOrc] = useState(0);
+  /** Durante o foco no orçamento, texto livre; fora, valor vem de `orcamentoReais` formatado. */
+  const [orcamentoCampoRascunho, setOrcamentoCampoRascunho] = useState<
+    string | null
+  >(null);
+  const [dicaPainelFlutuanteVista, setDicaPainelFlutuanteVista] = useState(
+    lerDicaPainelFlutuanteJaVista,
+  );
+  /** Após minimizar o resumo: tutorial preço/qtd → checkbox no 1.º item não comprado. */
+  const [tutorialFlutuanteItemId, setTutorialFlutuanteItemId] = useState<
+    string | null
+  >(null);
+  const [faseTutorialFlutuanteItens, setFaseTutorialFlutuanteItens] = useState<
+    "preco-qtd" | "checkbox" | null
+  >(null);
+
+  /** Primeira utilização da lista completa: balão + pulso até sair do campo (blur), não na 1.ª tecla. */
+  const emTutorialOrcamento =
+    orcamentoAtivo && !dicaOrcamentoListaCompletaVista;
+  const mostrarDestaqueOrcamentoCampo = emTutorialOrcamento;
+
+  useEffect(() => {
+    if (!mostrarDestaqueOrcamentoCampo) {
+      setCharsFraseOrc(0);
+      return;
+    }
+    setCharsFraseOrc(0);
+    let i = 0;
+    const id = setInterval(() => {
+      i += 1;
+      setCharsFraseOrc(i);
+      if (i >= FRASE_DICA_ORCAMENTO.length) clearInterval(id);
+    }, 32);
+    return () => clearInterval(id);
+  }, [mostrarDestaqueOrcamentoCampo]);
+
+  /** Após 1.º orçamento válido: destaque no botão de minimizar o resumo (painel flutuante). */
+  const mostrarDicaPainelFlutuante =
+    !listaSimples &&
+    orcamentoAtivo &&
+    orcamentoReais != null &&
+    orcamentoReais > 0 &&
+    !dicaPainelFlutuanteVista &&
+    resumoMercadoExpandido;
+
+  const aoMinimizarResumoMercado = useCallback(() => {
+    const marcarAoMinimizar =
+      !listaSimples &&
+      orcamentoAtivo &&
+      orcamentoReais != null &&
+      orcamentoReais > 0 &&
+      !dicaPainelFlutuanteVista;
+    if (marcarAoMinimizar) {
+      marcarDicaPainelFlutuanteVista();
+      setDicaPainelFlutuanteVista(true);
+    }
+    setResumoMercadoExpandido(false);
+  }, [
+    listaSimples,
+    orcamentoAtivo,
+    orcamentoReais,
+    dicaPainelFlutuanteVista,
+  ]);
+
+  useEffect(() => {
+    if (lerTutorialFlutuanteItensCompleto()) return;
+    if (listaSimples || resumoMercadoExpandido) return;
+    if (orcamentoReais == null || orcamentoReais <= 0) return;
+    if (tutorialFlutuanteItemId != null) return;
+    const primeiro = itens.find((i) => !i.comprado);
+    if (!primeiro) return;
+    setTutorialFlutuanteItemId(primeiro.id);
+    setFaseTutorialFlutuanteItens(
+      podeMarcarComoComprado(primeiro) ? "checkbox" : "preco-qtd",
+    );
+  }, [
+    listaSimples,
+    resumoMercadoExpandido,
+    orcamentoReais,
+    itens,
+    tutorialFlutuanteItemId,
+  ]);
+
+  useEffect(() => {
+    if (
+      faseTutorialFlutuanteItens !== "preco-qtd" ||
+      !tutorialFlutuanteItemId ||
+      lerTutorialFlutuanteItensCompleto()
+    ) {
+      return;
+    }
+    const it = itens.find((i) => i.id === tutorialFlutuanteItemId);
+    if (it && podeMarcarComoComprado(it)) {
+      setFaseTutorialFlutuanteItens("checkbox");
+    }
+  }, [itens, faseTutorialFlutuanteItens, tutorialFlutuanteItemId]);
+
+  useEffect(() => {
+    if (
+      faseTutorialFlutuanteItens !== "checkbox" ||
+      !tutorialFlutuanteItemId ||
+      lerTutorialFlutuanteItensCompleto()
+    ) {
+      return;
+    }
+    const it = itens.find((i) => i.id === tutorialFlutuanteItemId);
+    if (it?.comprado) {
+      marcarTutorialFlutuanteItensCompleto();
+      setTutorialFlutuanteItemId(null);
+      setFaseTutorialFlutuanteItens(null);
+    }
+  }, [itens, faseTutorialFlutuanteItens, tutorialFlutuanteItemId]);
 
   const blocos = blocosPorCategoria(
     itens,
@@ -618,29 +793,91 @@ export function ListaMercado({
               </button>
             </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setResumoMercadoExpandido(false)}
-              className="relative z-20 flex h-11 min-h-[44px] w-11 min-w-[44px] shrink-0 touch-manipulation items-center justify-center rounded-xl border border-blue-200/80 bg-white/95 text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-95"
-              aria-label="Minimizar para painel flutuante"
-              title="Painel flutuante"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="h-5 w-5 shrink-0"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
-                />
-              </svg>
-            </button>
+            <div className="relative shrink-0 self-start">
+              {mostrarDicaPainelFlutuante ? (
+                <motion.div
+                  role="status"
+                  aria-live="polite"
+                  initial={{ opacity: 0.96, y: -1 }}
+                  animate={{ opacity: [1, 0.9, 1], y: [0, -2, 0] }}
+                  transition={{
+                    duration: 1.35,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="pointer-events-none absolute -top-14 right-0 z-[50] w-[min(17.5rem,calc(100vw-2.5rem))] rounded-2xl border border-amber-300/95 bg-white px-3 py-1.5 text-left text-[11px] font-semibold leading-snug text-amber-900 shadow-md shadow-amber-200/60"
+                >
+                  {FRASE_DICA_PAINEL_FLUTUANTE}
+                  <span className="absolute -bottom-2 left-[78%] h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-amber-300/95 bg-white" />
+                  <span className="absolute -bottom-3 left-[76%] h-1.5 w-1.5 rounded-full bg-white/95 ring-1 ring-amber-200" />
+                  <span className="absolute -bottom-5 left-[74%] h-1 w-1 rounded-full bg-white/95 ring-1 ring-amber-200" />
+                </motion.div>
+              ) : null}
+              {mostrarDicaPainelFlutuante ? (
+                <motion.button
+                  type="button"
+                  onClick={aoMinimizarResumoMercado}
+                  className="relative z-[1] flex h-11 min-h-[44px] w-11 min-w-[44px] touch-manipulation items-center justify-center rounded-xl border border-amber-300 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-amber-500/40"
+                  aria-label="Minimizar para painel flutuante"
+                  title="Painel flutuante"
+                  animate={{
+                    scale: [1, 1.04, 1],
+                    opacity: [1, 0.86, 1],
+                    boxShadow: [
+                      "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                      "0 0 0 12px rgba(251, 146, 60, 0)",
+                      "0 0 0 0 rgba(251, 146, 60, 0.72)",
+                    ],
+                  }}
+                  transition={{
+                    duration: 1.2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="h-5 w-5 shrink-0 text-white"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+                    />
+                  </svg>
+                  <span className="sr-only"> — destaque: painel flutuante</span>
+                </motion.button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={aoMinimizarResumoMercado}
+                  className="relative z-20 flex h-11 min-h-[44px] w-11 min-w-[44px] shrink-0 touch-manipulation items-center justify-center rounded-xl border border-blue-200/80 bg-white/95 text-blue-900 shadow-sm transition hover:bg-blue-50 active:scale-95"
+                  aria-label="Minimizar para painel flutuante"
+                  title="Painel flutuante"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="h-5 w-5 shrink-0"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
           {orcamentoAtivo ? (
             <div className="mt-3 border-t border-blue-200/70 pt-3">
@@ -750,37 +987,120 @@ export function ListaMercado({
                       Ocultar
                     </button>
                   </div>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                    <div className="mt-2 flex w-full flex-col gap-2">
                     <label htmlFor="orcamento-mercado" className="sr-only">
                       Valor do orçamento em reais
                     </label>
-                    <div className="flex flex-1 flex-wrap items-center gap-2 sm:min-w-[12rem]">
-                      <input
-                        id="orcamento-mercado"
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step={0.01}
-                        placeholder="Ex.: 300"
-                        value={orcamentoReais ?? ""}
-                        onChange={(e) => {
-                          if (!onOrcamentoChange) return;
-                          const raw = e.target.value;
-                          if (raw === "") {
-                            onOrcamentoChange(null);
-                            return;
-                          }
-                          const n = parseFloat(raw);
-                          if (!Number.isNaN(n) && n >= 0) {
-                            onOrcamentoChange(Math.round(n * 100) / 100);
-                          }
+                    {mostrarDestaqueOrcamentoCampo ? (
+                      <motion.div
+                        role="status"
+                        aria-live="polite"
+                        initial={{ opacity: 0.96, y: -1 }}
+                        animate={{ opacity: [1, 0.9, 1], y: [0, -2, 0] }}
+                        transition={{
+                          duration: 1.35,
+                          repeat: Infinity,
+                          ease: "easeInOut",
                         }}
-                        className="min-h-[44px] min-w-[7rem] flex-1 rounded-xl border border-blue-200/90 bg-white/95 px-3 py-2 text-base font-medium tabular-nums text-slate-900 shadow-inner outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 sm:max-w-[10rem]"
-                      />
+                        className="pointer-events-none relative z-[50] mb-1 mr-auto w-fit max-w-[min(20rem,calc(100vw-2rem))] self-start rounded-2xl border border-orange-300/95 bg-white px-3 py-1.5 text-left text-[11px] font-semibold leading-snug text-orange-900 shadow-md shadow-orange-200/60"
+                      >
+                        <span className="text-orange-950">
+                          {FRASE_DICA_ORCAMENTO.slice(0, charsFraseOrc)}
+                          {charsFraseOrc < FRASE_DICA_ORCAMENTO.length ? (
+                            <span className="ml-0.5 inline-block h-[1em] w-0.5 translate-y-px animate-pulse rounded-sm bg-orange-500 align-middle" />
+                          ) : null}
+                        </span>
+                        <span className="absolute -bottom-2 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border-b border-r border-orange-300/95 bg-white" />
+                        <span className="absolute -bottom-3 left-[46%] h-1.5 w-1.5 rounded-full bg-white/95 ring-1 ring-orange-200" />
+                        <span className="absolute -bottom-5 left-[42%] h-1 w-1 rounded-full bg-white/95 ring-1 ring-orange-200" />
+                      </motion.div>
+                    ) : null}
+                    <div className="flex flex-1 flex-wrap items-center gap-2 sm:min-w-[12rem]">
+                      <div
+                        className={[
+                          "relative min-w-[7rem] flex-1 rounded-xl border-2 bg-white/95 sm:max-w-[14rem]",
+                          mostrarDestaqueOrcamentoCampo
+                            ? "animate-orcamento-campo-pulsar border-orange-500"
+                            : "border-blue-200/90",
+                        ].join(" ")}
+                      >
+                        <input
+                          id="orcamento-mercado"
+                          type="text"
+                          inputMode="decimal"
+                          autoComplete="off"
+                          placeholder="R$ 100,00"
+                          value={
+                            orcamentoCampoRascunho !== null
+                              ? orcamentoCampoRascunho
+                              : orcamentoReais != null
+                                ? formatarMoedaBRL(orcamentoReais)
+                                : ""
+                          }
+                          onFocus={() => {
+                            setOrcamentoCampoRascunho(
+                              orcamentoReais != null
+                                ? formatarMoedaBRL(orcamentoReais)
+                                : "",
+                            );
+                          }}
+                          onBlur={() => {
+                            const rasc = orcamentoCampoRascunho;
+                            setOrcamentoCampoRascunho(null);
+                            if (!onOrcamentoChange) return;
+
+                            const eraTutorial =
+                              orcamentoAtivo &&
+                              !dicaOrcamentoListaCompletaVista;
+                            if (eraTutorial) {
+                              marcarDicaOrcamentoListaCompletaVista();
+                              setDicaOrcamentoListaCompletaVista(true);
+                            }
+
+                            if (rasc == null) return;
+                            const t = rasc.trim();
+                            if (t === "") {
+                              onOrcamentoChange(null);
+                              return;
+                            }
+                            const n = parsearEntradaMoeda(rasc);
+                            if (n !== null) onOrcamentoChange(n);
+                          }}
+                          onChange={(e) => {
+                            if (!onOrcamentoChange) return;
+                            const v = e.target.value;
+                            setOrcamentoCampoRascunho(v);
+
+                            if (emTutorialOrcamento) {
+                              if (v.trim() === "") {
+                                onOrcamentoChange(null);
+                              }
+                              return;
+                            }
+
+                            if (v.trim() === "") {
+                              onOrcamentoChange(null);
+                              return;
+                            }
+                            const n = parsearEntradaMoeda(v);
+                            if (n !== null) {
+                              onOrcamentoChange(n);
+                            }
+                          }}
+                          className="relative z-[2] min-h-[44px] w-full rounded-[10px] border-0 bg-transparent px-3 py-2 text-base font-medium tabular-nums text-slate-900 shadow-inner outline-none focus:border focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
+                        />
+                      </div>
                       <button
                         type="button"
                         className="shrink-0 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        onClick={() => onOrcamentoChange?.(null)}
+                        onClick={() => {
+                          setOrcamentoCampoRascunho(null);
+                          onOrcamentoChange?.(null);
+                          if (!dicaOrcamentoListaCompletaVista) {
+                            marcarDicaOrcamentoListaCompletaVista();
+                            setDicaOrcamentoListaCompletaVista(true);
+                          }
+                        }}
                       >
                         Limpar orçamento
                       </button>
@@ -879,6 +1199,19 @@ export function ListaMercado({
                       onQuantidadeChange={onQuantidadeChange}
                       onRetirarDaListaMercado={onRetirarDaListaMercado}
                       listaSimples={listaSimples}
+                      destaqueTutorialPrecoQtd={
+                        !listaSimples &&
+                        !lerTutorialFlutuanteItensCompleto() &&
+                        tutorialFlutuanteItemId === item.id &&
+                        faseTutorialFlutuanteItens === "preco-qtd"
+                      }
+                      destaqueTutorialCheckbox={
+                        !listaSimples &&
+                        !lerTutorialFlutuanteItensCompleto() &&
+                        tutorialFlutuanteItemId === item.id &&
+                        faseTutorialFlutuanteItens === "checkbox" &&
+                        !item.comprado
+                      }
                     />
                   ))}
                 </AnimatePresence>

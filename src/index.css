@@ -44,10 +44,23 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
   body {
     @apply min-h-dvh antialiased text-slate-900;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
     font-family: var(--font-sans);
     background-color: #e8eef7;
     background-image: url("/Corredor.png");
@@ -74,6 +87,27 @@
     position: relative;
     z-index: 1;
     min-height: 100dvh;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+  }
+}
+
+@keyframes orcamento-campo-pulsar {
+  0%,
+  100% {
+    border-color: rgb(249 115 22);
+    box-shadow:
+      0 0 0 2px rgb(251 146 60 / 0.4),
+      0 2px 10px rgb(249 115 22 / 0.2);
+  }
+  50% {
+    border-color: rgb(251 146 60);
+    box-shadow:
+      0 0 0 4px rgb(254 215 170 / 0.55),
+      0 0 20px 4px rgb(249 115 22 / 0.35);
   }
 }
 
@@ -83,5 +117,8 @@
   }
   .animate-tipo-lista-borda-b {
     animation: tipo-lista-borda-b 2.2s ease-in-out infinite;
+  }
+  .animate-orcamento-campo-pulsar {
+    animation: orcamento-campo-pulsar 1.35s ease-in-out infinite;
   }
 }

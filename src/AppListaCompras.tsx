@@ -52,6 +52,8 @@ import {
 } from "./services/syncPrefs";
 import { hashSalaSync } from "./utils/salaSync";
 import { publicarEstadoSomenteLeitura } from "./services/shareReadonlyFirestore";
+import { carregarFinancasAccountEmail } from "./services/financasAccount";
+import { BadgeNuvemFinancas } from "./components/BadgeNuvemFinancas";
 
 const AbaBalancoPainel = lazy(() => import("./components/AbaBalanco"));
 
@@ -99,6 +101,7 @@ export function AppListaCompras() {
   const [modalEscanearCodigoAberto, setModalEscanearCodigoAberto] =
     useState(false);
   const [syncPrefs, setSyncPrefs] = useState(carregarSyncPrefs);
+  const [financasAccountEmail] = useState(carregarFinancasAccountEmail);
 
   const online = useOnlineStatus();
 
@@ -282,8 +285,15 @@ export function AppListaCompras() {
   const tutorialDicaPrimeiroPasso =
     modalTutorialAberto && itens.length === 0;
 
+  const mostrarBadgeNuvem =
+    firebaseConfigurado &&
+    syncAtivo &&
+    syncStatus !== "desligado" &&
+    financasAccountEmail != null;
+
   return (
     <div className="relative min-h-dvh">
+      <BadgeNuvemFinancas email={financasAccountEmail} visivel={mostrarBadgeNuvem} />
       {!online ? <BarraModoOffline /> : null}
 
       <div
@@ -446,7 +456,9 @@ export function AppListaCompras() {
         className={[
           "relative mx-auto flex max-w-lg touch-pan-y flex-col gap-5 overflow-x-hidden px-4 pb-28",
           online
-            ? "max-md:pt-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] md:pt-[max(1.25rem,env(safe-area-inset-top))]"
+            ? mostrarBadgeNuvem
+              ? "max-md:pt-[calc(max(0.75rem,env(safe-area-inset-top))+4.75rem)] md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+2.75rem)]"
+              : "max-md:pt-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] md:pt-[max(1.25rem,env(safe-area-inset-top))]"
             : "max-md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem+1.75rem)] md:pt-[calc(max(1.25rem,env(safe-area-inset-top))+3.75rem)]",
         ].join(" ")}
       >

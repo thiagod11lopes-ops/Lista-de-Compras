@@ -1,3 +1,5 @@
+import { emailDisplayLabel } from "../utils/emailDisplay";
+
 type Props = {
   email: string | null;
   visivel: boolean;
@@ -23,7 +25,7 @@ export function BadgeNuvemFinancas({ email, visivel }: Props) {
         </span>
       </div>
       <span className="max-w-full truncate text-[9px] font-medium text-slate-600">
-        {email}
+        {emailDisplayLabel(email)}
       </span>
     </div>
   );

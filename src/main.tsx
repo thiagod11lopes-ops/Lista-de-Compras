@@ -2,6 +2,9 @@ import { Component, type ErrorInfo, type ReactNode, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { aplicarSyncFinancasDaUrl } from "./services/financasSyncBridge";
+
+aplicarSyncFinancasDaUrl();
 
 class ErrorBoundary extends Component<
   { children: ReactNode },

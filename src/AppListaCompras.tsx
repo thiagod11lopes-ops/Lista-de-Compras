@@ -54,6 +54,7 @@ import { hashSalaSync } from "./utils/salaSync";
 import { publicarEstadoSomenteLeitura } from "./services/shareReadonlyFirestore";
 import { carregarFinancasAccountEmail } from "./services/financasAccount";
 import { BadgeNuvemFinancas } from "./components/BadgeNuvemFinancas";
+import { BarraVoltarFinancas } from "./components/BarraVoltarFinancas";
 
 const AbaBalancoPainel = lazy(() => import("./components/AbaBalanco"));
 
@@ -294,6 +295,7 @@ export function AppListaCompras() {
   return (
     <div className="relative min-h-dvh">
       <BadgeNuvemFinancas email={financasAccountEmail} visivel={mostrarBadgeNuvem} />
+      <BarraVoltarFinancas />
       {!online ? <BarraModoOffline /> : null}
 
       <div

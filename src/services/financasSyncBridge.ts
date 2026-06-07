@@ -2,6 +2,7 @@ import { salvarFinancasAccountEmail } from "./financasAccount";
 import { salvarSyncPrefs } from "./syncPrefs";
 
 const ROOM_HASH_RE = /^[a-f0-9]{64}$/;
+const FROM_FINANCAS_PWA_KEY = "lista-compras:fromFinancasPwa";
 
 /** Ativa sincronização quando o app Finanças abre esta lista com `?roomHash=…`. */
 export function aplicarSyncFinancasDaUrl(): void {
@@ -17,6 +18,15 @@ export function aplicarSyncFinancasDaUrl(): void {
   }
   if (email.includes("@")) {
     salvarFinancasAccountEmail(email);
+    changed = true;
+  }
+  if (params.get("fromFinancasPwa") === "1") {
+    try {
+      sessionStorage.setItem(FROM_FINANCAS_PWA_KEY, "1");
+    } catch {
+      /* */
+    }
+    params.delete("fromFinancasPwa");
     changed = true;
   }
   if (!changed) return;
